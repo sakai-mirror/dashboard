@@ -1,0 +1,16 @@
+<classpath>
+  <classpathentry kind="src" path="src/java"/>
+  <classpathentry kind="output" path="target/classes"/>
+  <classpathentry kind="var" path="M2_REPO/junit/junit/3.8.1/junit-3.8.1.jar" sourcepath="M2_REPO/junit/junit/3.8.1/junit-3.8.1-sources.jar"/>
+  <classpathentry kind="var" path="M2_REPO/org/projectlombok/lombok/0.9.3/lombok-0.9.3.jar" sourcepath="M2_REPO/org/projectlombok/lombok/0.9.3/lombok-0.9.3-sources.jar">
+    <attributes>
+      <attribute value="jar:file:M2_REPO/org/projectlombok/lombok/0.9.3/lombok-0.9.3-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/org/sakaiproject/kernel/sakai-kernel-api/1.3.0-SNAPSHOT/sakai-kernel-api-1.3.0-SNAPSHOT.jar" sourcepath="M2_REPO/org/sakaiproject/kernel/sakai-kernel-api/1.3.0-SNAPSHOT/sakai-kernel-api-1.3.0-SNAPSHOT-sources.jar">
+    <attributes>
+      <attribute value="jar:file:M2_REPO/org/sakaiproject/kernel/sakai-kernel-api/1.3.0-SNAPSHOT/sakai-kernel-api-1.3.0-SNAPSHOT-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+</classpath>
