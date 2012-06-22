@@ -1,0 +1,1 @@
+DASH-231	dashboard build problem with Sakai trunk code after purepom changes
