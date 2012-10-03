@@ -28,11 +28,12 @@ import java.util.Map;
 
 /**
  * THIS WILL BE MOVED TO KERNEL
- * An EntityType provides methods to allow the dashboard to obtain information about 
- * a class of Sakai entities and about specific instances of that class. 
+ * An implementation of DashboardEntityInfo provides methods to allow the dashboard 
+ * to obtain information about a class of Sakai entities and about specific instances 
+ * of that class. 
  *
  */
-public interface EntityType {
+public interface DashboardEntityInfo {
 	
 	public static final String VALUE_TITLE = "title";
 	public static final String VALUE_DESCRIPTION = "description";

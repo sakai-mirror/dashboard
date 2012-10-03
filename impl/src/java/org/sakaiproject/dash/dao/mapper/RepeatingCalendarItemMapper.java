@@ -19,7 +19,7 @@
  * 
  **********************************************************************************/ 
 
-package org.sakaiproject.dash.dao.impl;
+package org.sakaiproject.dash.dao.mapper;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;

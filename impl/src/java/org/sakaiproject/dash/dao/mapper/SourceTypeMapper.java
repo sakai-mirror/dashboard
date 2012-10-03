@@ -19,34 +19,33 @@
  * 
  **********************************************************************************/ 
 
-package org.sakaiproject.dash.entity;
+package org.sakaiproject.dash.dao.mapper;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
+import net.sf.json.JSONArray;
+
+import org.sakaiproject.dash.model.SourceType;
+import org.springframework.jdbc.core.RowMapper;
 
 /**
  * 
- * @deprecated
+ *
  */
-public enum EntityLinkStrategy {
-	
-	/** 
-	 * Open a disclosure in the dashboard with a little info (description, date, etc) 
-	 * and possibly a navigation link.
-	 * Requires an implementation of org.sakaiproject.dash.entity.EntityType be registered
-	 * with org.sakaiproject.dash.logic.DashboardLogic and that org.sakaiproject.dash.entity.EntityType.getProperties() 
-	 * returns a mapping of specific key-value pairs.
+public class SourceTypeMapper implements RowMapper {
+
+	/* (non-Javadoc)
+	 * @see org.springframework.jdbc.core.RowMapper#mapRow(java.sql.ResultSet, int)
 	 */
-	SHOW_PROPERTIES,
-	
-	/** 
-	 * Open a dialog in the dashboard with an HTML fragment provided by some other code. 
-	 * Requires that the entity URL provide an HTML fragment that will can be retrieved 
-	 * with an AJAX request and  
-	 */
-	SHOW_DIALOG,
-	
-	/**  
-	 * Open the access-url, which may navigate away from the dashboard. 
-	 *  
-	 */
-	ACCESS_URL
-	
+	public Object mapRow(ResultSet rs, int rowNum) throws SQLException {
+		
+		// source_type
+		SourceType sourceType = new SourceType();
+		sourceType.setId(rs.getLong("type_id"));
+		sourceType.setIdentifier(rs.getString("type_identifier"));
+		
+		return sourceType;
+	}
+
 }

@@ -19,30 +19,34 @@
  * 
  **********************************************************************************/ 
 
-package org.sakaiproject.dash.dao.impl;
+package org.sakaiproject.dash.dao.mapper;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import org.sakaiproject.dash.model.AvailabilityCheck;
+import org.sakaiproject.dash.model.Context;
 import org.springframework.jdbc.core.RowMapper;
 
-/**
- * 
- *
- */
-public class AvailabilityCheckMapper implements RowMapper {
+public class ContextMapper implements RowMapper
+{
 
 	public Object mapRow(ResultSet rs, int rowNum) throws SQLException {
-		
-		AvailabilityCheck availabilityCheck = new AvailabilityCheck();
-		
-		availabilityCheck.setId(rs.getLong("id"));
-		availabilityCheck.setEntityReference(rs.getString("entity_ref"));
-		availabilityCheck.setEntityTypeId(rs.getString("entity_type_id"));
-		availabilityCheck.setScheduledTime(rs.getDate("scheduled_time"));
-		
-		return availabilityCheck;
+		Context context = new Context();
+		try {
+			context.setId(rs.getLong("site_id"));
+			context.setContextId(rs.getString("site_context_id"));
+			context.setContextTitle(rs.getString("site_context_title"));
+			context.setContextUrl(rs.getString("site_context_url"));
+		} catch (Exception e) {
+			System.out.println("=============== " + e + " ===============");
+			e.printStackTrace(System.out);
+			if(e instanceof SQLException) {
+				throw (SQLException) e;
+			}
+		}
+		return context;
 	}
+	
+	
 
 }

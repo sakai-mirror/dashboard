@@ -42,7 +42,7 @@ import org.sakaiproject.calendar.api.RecurrenceRule;
 import org.sakaiproject.content.api.ContentResource;
 import org.sakaiproject.dash.listener.EventProcessor;
 import org.sakaiproject.dash.logic.DashboardLogic;
-import org.sakaiproject.dash.logic.SakaiProxy;
+import org.sakaiproject.dash.app.SakaiProxy;
 import org.sakaiproject.dash.model.CalendarItem;
 import org.sakaiproject.dash.model.Context;
 import org.sakaiproject.dash.model.RepeatingCalendarItem;
@@ -180,7 +180,7 @@ public class ScheduleSupport{
 				DateFormat df = DateFormat.getDateTimeInstance();
 				ResourceProperties props = cEvent.getProperties();
 				// "entity-type": "assignment"
-				values.put(EntityType.VALUE_ENTITY_TYPE, IDENTIFIER);
+				values.put(DashboardEntityInfo.VALUE_ENTITY_TYPE, IDENTIFIER);
 				values.put(VALUE_TITLE, cEvent.getDisplayName());
 				values.put(VALUE_CALENDAR_TIME, df.format(new Date(cEvent.getRange().firstTime().getTime())));
 				try {
@@ -191,7 +191,7 @@ public class ScheduleSupport{
 					logger.warn("getValues(" + entityReference + "," + localeCode + ") EntityPropertyTypeException: " + e);
 				}
 				
-				values.put(EntityType.VALUE_ENTITY_TYPE, IDENTIFIER);
+				values.put(DashboardEntityInfo.VALUE_ENTITY_TYPE, IDENTIFIER);
 				values.put(VALUE_DESCRIPTION, cEvent.getDescription());
 				// "user-name": "Creator's Name"
 				/*User user = cEvent.getCreator().getFrom();

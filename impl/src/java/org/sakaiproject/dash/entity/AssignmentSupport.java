@@ -36,7 +36,7 @@ import org.sakaiproject.assignment.api.AssignmentService;
 import org.sakaiproject.content.api.ContentResource;
 import org.sakaiproject.dash.listener.EventProcessor;
 import org.sakaiproject.dash.logic.DashboardLogic;
-import org.sakaiproject.dash.logic.SakaiProxy;
+import org.sakaiproject.dash.app.SakaiProxy;
 import org.sakaiproject.dash.model.CalendarItem;
 import org.sakaiproject.dash.model.Context;
 import org.sakaiproject.dash.model.NewsItem;
@@ -106,7 +106,7 @@ public class AssignmentSupport {
 	 * @author zqian
 	 *
 	 */
-	public class AssignmentEntityType implements EntityType {
+	public class AssignmentEntityType implements DashboardEntityInfo {
 		
 		/* (non-Javadoc)
 		 * @see org.sakaiproject.dash.entity.EntityType#getIdentifier()
@@ -154,7 +154,7 @@ public class AssignmentSupport {
 					logger.warn("getValues(" + entityReference + "," + localeCode + ") EntityPropertyTypeException: " + e);
 				}
 				// "entity-type": "assignment"
-				values.put(EntityType.VALUE_ENTITY_TYPE, IDENTIFIER);
+				values.put(DashboardEntityInfo.VALUE_ENTITY_TYPE, IDENTIFIER);
 				
 				
 				// "submission-type": ""

@@ -19,26 +19,30 @@
  * 
  **********************************************************************************/ 
 
-package org.sakaiproject.dash.dao.impl;
+package org.sakaiproject.dash.dao.mapper;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import org.sakaiproject.dash.model.ItemType;
-import org.sakaiproject.dash.model.Person;
-import org.sakaiproject.dash.model.PersonSourceType;
-import org.sakaiproject.dash.model.SourceType;
+import org.sakaiproject.dash.model.AvailabilityCheck;
 import org.springframework.jdbc.core.RowMapper;
 
-public class PersonSourceTypeMapper implements RowMapper
-{
+/**
+ * 
+ *
+ */
+public class AvailabilityCheckMapper implements RowMapper {
 
 	public Object mapRow(ResultSet rs, int rowNum) throws SQLException {
-		ItemType itemType = ItemType.fromInteger(rs.getInt("pc_itemtype"));
-		Person person = (Person) new PersonMapper().mapRow(rs, rowNum);
-		SourceType sourceType = (SourceType) new SourceTypeMapper().mapRow(rs, rowNum);
-		PersonSourceType personSourceType = new PersonSourceType(itemType, person, sourceType);
-		return personSourceType;
+		
+		AvailabilityCheck availabilityCheck = new AvailabilityCheck();
+		
+		availabilityCheck.setId(rs.getLong("id"));
+		availabilityCheck.setEntityReference(rs.getString("entity_ref"));
+		availabilityCheck.setEntityTypeId(rs.getString("entity_type_id"));
+		availabilityCheck.setScheduledTime(rs.getDate("scheduled_time"));
+		
+		return availabilityCheck;
 	}
-	
+
 }

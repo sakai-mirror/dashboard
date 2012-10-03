@@ -39,7 +39,7 @@ import org.sakaiproject.content.api.ContentResource;
 import org.sakaiproject.content.api.ResourceType;
 import org.sakaiproject.dash.listener.EventProcessor;
 import org.sakaiproject.dash.logic.DashboardLogic;
-import org.sakaiproject.dash.logic.SakaiProxy;
+import org.sakaiproject.dash.app.SakaiProxy;
 import org.sakaiproject.dash.model.Context;
 import org.sakaiproject.dash.model.NewsItem;
 import org.sakaiproject.dash.model.SourceType;
@@ -132,7 +132,7 @@ public class ResourceSupport {
 
 
 	
-	public class ResourceEntityType implements EntityType {
+	public class ResourceEntityType implements DashboardEntityInfo {
 		
 		public static final String LABEL_RESOURCE_METADATA = "resource_metadata-label";
 		

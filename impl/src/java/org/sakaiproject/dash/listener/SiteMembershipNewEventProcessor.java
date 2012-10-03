@@ -23,7 +23,7 @@ package org.sakaiproject.dash.listener;
 
 import org.apache.log4j.Logger;
 import org.sakaiproject.dash.logic.DashboardLogic;
-import org.sakaiproject.dash.logic.SakaiProxy;
+import org.sakaiproject.dash.app.SakaiProxy;
 import org.sakaiproject.event.api.Event;
 import org.sakaiproject.site.api.SiteService;
 

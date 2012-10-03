@@ -25,11 +25,15 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.sakaiproject.dash.app.DashboardCommonLogic;
+import org.sakaiproject.dash.app.DashboardConfig;
+import org.sakaiproject.dash.app.SakaiProxy;
 import org.sakaiproject.dash.dao.DashboardDao;
 import org.sakaiproject.dash.listener.EventProcessor;
-import org.sakaiproject.dash.logic.DashboardLogic;
+import org.sakaiproject.dash.logic.DashboardCommonLogicImpl;
+import org.sakaiproject.dash.logic.DashboardConfigImpl;
 import org.sakaiproject.dash.logic.DashboardLogicImpl;
-import org.sakaiproject.dash.logic.SakaiProxy;
+import org.sakaiproject.dash.logic.TaskLock;
 import org.sakaiproject.dash.mock.DashboardDaoMock;
 import org.sakaiproject.dash.mock.SakaiProxyMock;
 import org.sakaiproject.dash.model.CalendarItem;
@@ -54,8 +58,7 @@ public class DashboardLogicTest extends AbstractTransactionalSpringContextTests
 	private static final long ONE_WEEK = ONE_DAY * 7L;
 
 	protected SakaiProxy sakaiProxy;
-	protected DashboardLogic dashboardLogic;
-	protected DashboardDao dashboardDao;
+	protected DashboardCommonLogic dashboardCommonLogic;
 
 	/**
 	 * @param sakaiProxy the sakaiProxy to set
@@ -65,10 +68,10 @@ public class DashboardLogicTest extends AbstractTransactionalSpringContextTests
 	}
 
 	/**
-	 * @param dashboardLogic the dashboardLogic to set
+	 * @param dashboardCommonLogic the dashboardCommonLogic to set
 	 */
-	public void setDashboardLogic(DashboardLogic dashboardLogic) {
-		this.dashboardLogic = dashboardLogic;
+	public void setDashboardLogic(DashboardCommonLogic dashboardCommonLogic) {
+		this.dashboardCommonLogic = dashboardCommonLogic;
 	}
 
 	public DashboardLogicTest() {
@@ -118,24 +121,30 @@ public class DashboardLogicTest extends AbstractTransactionalSpringContextTests
 		
 		// add a calendar item
 		// supply a small roster for a context by way of the SakaiProxyMock
-		// call DashboardLogic.createCalendarLinks(calendarItem)
+		// call DashboardCommonLogic.createCalendarLinks(calendarItem)
 		// confirm that the calendar links were created for the item
 	}
 
 	public void testCreateContext() {
 		this.sakaiProxy = new SakaiProxyMock();
-		this.dashboardDao = new DashboardDaoMock();
-		this.dashboardLogic = new DashboardLogicImpl();
-		((DashboardLogicImpl) this.dashboardLogic).setSakaiProxy(sakaiProxy);
-		((DashboardLogicImpl) this.dashboardLogic).setDao(this.dashboardDao);
+		DashboardDao dao = new DashboardDaoMock();
+		this.dashboardCommonLogic = new DashboardCommonLogicImpl();
+		DashboardLogicImpl dashboardLogic = new DashboardLogicImpl();
+		dashboardLogic.setDao(dao);
+		DashboardConfig dashboardConfig = new DashboardConfigImpl();
+		dashboardLogic.setDashboardConfig(dashboardConfig);
+		dashboardLogic.setSakaiProxy(sakaiProxy);
+		((DashboardCommonLogicImpl) this.dashboardCommonLogic).setDashboardLogic(dashboardLogic );
+		((DashboardCommonLogicImpl) this.dashboardCommonLogic).setSakaiProxy(sakaiProxy);
+		((DashboardCommonLogicImpl) this.dashboardCommonLogic).setDao(dao);
 		
 		String validContextId = SakaiProxyMock.VALID_SITE_ID;
 		
 		// create and save a Context object for a valid siteId
-		Context validContext = this.dashboardLogic.createContext(validContextId);
+		Context validContext = this.dashboardCommonLogic.createContext(validContextId);
 		assertNotNull(validContext);
 		// retrieve the Context object
-		Context c1 = this.dashboardLogic.getContext(validContextId);
+		Context c1 = this.dashboardCommonLogic.getContext(validContextId);
 		// confirm that its properties are correct
 		assertNotNull(c1);
 		assertEquals(validContextId, c1.getContextId());
@@ -143,11 +152,11 @@ public class DashboardLogicTest extends AbstractTransactionalSpringContextTests
 		String bogusContextId = SakaiProxyMock.BOGUS_SITE_ID;
 		
 		// try creating and saving a Context object for an invalid siteId
-		Context bogusContext = this.dashboardLogic.createContext(bogusContextId);
+		Context bogusContext = this.dashboardCommonLogic.createContext(bogusContextId);
 		
 		assertNull(bogusContext);
 		
-		Context c2 = this.dashboardLogic.getContext(bogusContextId);
+		Context c2 = this.dashboardCommonLogic.getContext(bogusContextId);
 		
 		assertNull(c2);
 	}
@@ -170,7 +179,7 @@ public class DashboardLogicTest extends AbstractTransactionalSpringContextTests
 		
 		// add a news item
 		// supply a small roster for a context by way of the SakaiProxyMock
-		// call DashboardLogic.createNewsLinks(newsItem)
+		// call DashboardCommonLogic.createNewsLinks(newsItem)
 		// confirm that the news links were created for the item
 	}
 
@@ -294,6 +303,117 @@ public class DashboardLogicTest extends AbstractTransactionalSpringContextTests
 		//List<CalendarItem> items = repeatingCalendarItem.generateCalendarItems(lastTime);
 		//assertNotNull(items);
 		//assertFalse(items.isEmpty());
+		
+	}
+	
+	public void testCheckTaskLock() {
+		this.sakaiProxy = new SakaiProxyMock();
+		this.dashboardCommonLogic = new DashboardCommonLogicImpl();
+		DashboardDao dao = new DashboardDaoMock();
+		
+		DashboardLogicImpl dashboardLogic = new DashboardLogicImpl();
+		
+		dashboardLogic.setDao(dao );
+		DashboardConfig dashboardConfig = new DashboardConfigImpl();
+		dashboardLogic.setDashboardConfig(dashboardConfig);
+		dashboardLogic.setSakaiProxy(sakaiProxy);
+		((DashboardCommonLogicImpl) this.dashboardCommonLogic).setDashboardLogic(dashboardLogic);
+		((DashboardCommonLogicImpl) this.dashboardCommonLogic).setSakaiProxy(sakaiProxy);
+		((DashboardCommonLogicImpl) this.dashboardCommonLogic).setDao(dao);
+		
+		String serverId00 = this.getUniqueIdentifier();
+		((SakaiProxyMock) this.sakaiProxy).setServerId(serverId00);
+
+		// boolean checkTaskLock(String task)
+		String task00 = this.getUniqueIdentifier();
+		this.dashboardCommonLogic.checkTaskLock(task00);
+		
+		List<TaskLock> taskLocks = dao.getTaskLocks(task00);
+		assertNotNull(taskLocks);
+		assertEquals(1, taskLocks.size());
+		
+		String serverId01 = this.getUniqueIdentifier();
+		((SakaiProxyMock) this.sakaiProxy).setServerId(serverId01);
+
+		this.dashboardCommonLogic.checkTaskLock(task00);
+		
+		taskLocks = dao.getTaskLocks(task00);
+		assertNotNull(taskLocks);
+		assertEquals(2, taskLocks.size());
+		
+		TaskLock taskLock00 = taskLocks.get(0);
+		assertNotNull(taskLock00);
+		assertNotNull(taskLock00.getId());
+		assertEquals(task00, taskLock00.getTask());
+		assertEquals(serverId00, taskLock00.getServerId());
+		
+		TaskLock taskLock01 = taskLocks.get(1);
+		assertNotNull(taskLock01);
+		assertNotNull(taskLock01.getId());
+		assertEquals(task00, taskLock01.getTask());
+		assertEquals(serverId01, taskLock01.getServerId());
+		
+		assertTrue(taskLock00.getClaimTime().before(taskLock01.getClaimTime()));
+		assertTrue(taskLock00.getLastUpdate().before(taskLock01.getLastUpdate()));
+		
+	}
+	public void testUpdateTaskLock(String task) {
+		this.sakaiProxy = new SakaiProxyMock();
+		this.dashboardCommonLogic = new DashboardCommonLogicImpl();
+		DashboardDao dao = new DashboardDaoMock();
+		
+		DashboardLogicImpl dashboardLogic = new DashboardLogicImpl();
+		
+		dashboardLogic.setDao(dao );
+		DashboardConfig dashboardConfig = new DashboardConfigImpl();
+		dashboardLogic.setDashboardConfig(dashboardConfig);
+		dashboardLogic.setSakaiProxy(sakaiProxy);
+		((DashboardCommonLogicImpl) this.dashboardCommonLogic).setDashboardLogic(dashboardLogic);
+		((DashboardCommonLogicImpl) this.dashboardCommonLogic).setSakaiProxy(sakaiProxy);
+		((DashboardCommonLogicImpl) this.dashboardCommonLogic).setDao(dao);
+		
+		String serverId00 = this.getUniqueIdentifier();
+		((SakaiProxyMock) this.sakaiProxy).setServerId(serverId00);
+
+		// boolean checkTaskLock(String task)
+		String task00 = this.getUniqueIdentifier();
+		this.dashboardCommonLogic.checkTaskLock(task00);
+		
+		List<TaskLock> taskLocks = dao.getTaskLocks(task00);
+		assertNotNull(taskLocks);
+		assertEquals(1, taskLocks.size());
+		
+		String serverId01 = this.getUniqueIdentifier();
+		((SakaiProxyMock) this.sakaiProxy).setServerId(serverId01);
+
+		this.dashboardCommonLogic.checkTaskLock(task00);
+		
+		taskLocks = dao.getTaskLocks(task00);
+		assertNotNull(taskLocks);
+		assertEquals(2, taskLocks.size());
+		
+		TaskLock taskLock00 = taskLocks.get(0);
+		assertNotNull(taskLock00);
+		assertNotNull(taskLock00.getId());
+		assertEquals(task00, taskLock00.getTask());
+		assertEquals(serverId00, taskLock00.getServerId());
+		Date beforeUpdate = new Date(taskLock00.getLastUpdate().getTime());
+		
+		this.dashboardCommonLogic.updateTaskLock(task00);
+		
+		taskLocks = dao.getTaskLocks(task00);
+		assertNotNull(taskLocks);
+		assertEquals(2, taskLocks.size());
+		
+		boolean found = false;
+		for(TaskLock lock : taskLocks) {
+			if(serverId01.equals(lock.getServerId())) {
+				assertTrue(beforeUpdate.before(lock.getLastUpdate()));
+				found = true;
+				break;
+			}
+		}
+		assertTrue(found);
 		
 	}
 	

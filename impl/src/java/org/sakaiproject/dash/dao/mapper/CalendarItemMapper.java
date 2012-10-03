@@ -19,13 +19,16 @@
  * 
  **********************************************************************************/ 
 
-package org.sakaiproject.dash.dao.impl;
+package org.sakaiproject.dash.dao.mapper;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.sakaiproject.dash.model.CalendarItem;
 import org.sakaiproject.dash.model.Context;
-import org.sakaiproject.dash.model.NewsItem;
+import org.sakaiproject.dash.model.RepeatingCalendarItem;
 import org.sakaiproject.dash.model.SourceType;
 import org.springframework.jdbc.core.RowMapper;
 
@@ -33,43 +36,39 @@ import org.springframework.jdbc.core.RowMapper;
  * 
  *
  */
-public class NewsItemMapper implements RowMapper {
+public class CalendarItemMapper implements RowMapper {
+	
+	private static Log logger = LogFactory.getLog(CalendarItemMapper.class);
 
 	/* (non-Javadoc)
 	 * @see org.springframework.jdbc.core.RowMapper#mapRow(java.sql.ResultSet, int)
 	 */
 	public Object mapRow(ResultSet rs, int rowNum) throws SQLException {
 		
-		NewsItem newsItem = null;
-		Long id = rs.getLong("ni_id");
-		if(id == null) { 
-			// this would be an error
-		} else {
-			newsItem = new NewsItem();
-			newsItem.setNewsTimeLabelKey(rs.getString("ni_news_time_label_key"));
-			newsItem.setTitle(rs.getString("ni_title"));
-			newsItem.setEntityReference(rs.getString("ni_entity_ref"));
-			newsItem.setSubtype(rs.getString("ni_subtype"));
-			try {
-				newsItem.setItemCount(rs.getInt("ni_count"));
-			} catch(SQLException e) {
-				// this means that "ni_count" is not valid, so set itemCount to 1
-				newsItem.setItemCount(1);
-			}
-		}
+		CalendarItem calendarItem = new CalendarItem();
+		calendarItem.setId(rs.getLong("ci_id"));
+		calendarItem.setCalendarTime(rs.getTimestamp("ci_calendar_time"));
+		calendarItem.setCalendarTimeLabelKey(rs.getString("ci_calendar_time_label_key"));
+		calendarItem.setTitle(rs.getString("ci_title"));
+		calendarItem.setEntityReference(rs.getString("ci_entity_ref"));
+		calendarItem.setSubtype(rs.getString("ci_subtype"));
+		calendarItem.setSequenceNumber(rs.getInt("ci_sequence_num"));
 		
-		newsItem.setId(id);
-		newsItem.setNewsTime(rs.getTimestamp("ni_news_time"));
+		// repeating_event_id
+		RepeatingCalendarItem repeatingCalendarItem = (RepeatingCalendarItem) (new RepeatingCalendarItemMapper()).mapRow(rs, rowNum);
+		calendarItem.setRepeatingCalendarItem(repeatingCalendarItem);
 		
 		// source_type
 		SourceType sourceType = (SourceType) (new SourceTypeMapper()).mapRow(rs, rowNum);
-		newsItem.setSourceType(sourceType);
+		calendarItem.setSourceType(sourceType);
 		
 		// context
 		Context context = (Context) (new ContextMapper()).mapRow(rs, rowNum);
-		newsItem.setContext(context);
+		calendarItem.setContext(context);
 		
-		return newsItem;
+		//logger.info(calendarItem);
+		
+		return calendarItem;
 	}
 
 }

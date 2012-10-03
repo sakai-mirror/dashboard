@@ -39,7 +39,7 @@ import org.sakaiproject.announcement.api.AnnouncementService;
 import org.sakaiproject.content.api.ContentResource;
 import org.sakaiproject.dash.listener.EventProcessor;
 import org.sakaiproject.dash.logic.DashboardLogic;
-import org.sakaiproject.dash.logic.SakaiProxy;
+import org.sakaiproject.dash.app.SakaiProxy;
 import org.sakaiproject.dash.model.Context;
 import org.sakaiproject.dash.model.NewsItem;
 import org.sakaiproject.dash.model.SourceType;
@@ -205,7 +205,7 @@ public class AnnouncementSupport{
 	 * @author zqian
 	 *
 	 */
-	public class AnnouncementEntityType implements EntityType {
+	public class AnnouncementEntityType implements DashboardEntityInfo {
 		
 		protected static final String LABEL_METADATA = "annc_metadata-label";
 
@@ -226,7 +226,7 @@ public class AnnouncementSupport{
 			if(announcement != null) {
 				AnnouncementMessageHeader header = announcement.getAnnouncementHeader();
 				ResourceProperties props = announcement.getProperties();
-				values.put(EntityType.VALUE_ENTITY_TYPE, IDENTIFIER);
+				values.put(DashboardEntityInfo.VALUE_ENTITY_TYPE, IDENTIFIER);
 				DateFormat df = DateFormat.getDateTimeInstance();
 				values.put(VALUE_NEWS_TIME, df.format(new Date(header.getDate().getTime())));
 				values.put(VALUE_DESCRIPTION, announcement.getBody());

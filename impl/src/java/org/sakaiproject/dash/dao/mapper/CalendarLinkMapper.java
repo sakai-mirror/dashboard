@@ -19,25 +19,43 @@
  * 
  **********************************************************************************/ 
 
-package org.sakaiproject.dash.dao.impl;
+package org.sakaiproject.dash.dao.mapper;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import org.sakaiproject.dash.model.CalendarItem;
+import org.sakaiproject.dash.model.CalendarLink;
 import org.sakaiproject.dash.model.Person;
 import org.springframework.jdbc.core.RowMapper;
 
-public class PersonMapper implements RowMapper
-{
+/**
+ * 
+ *
+ */
+public class CalendarLinkMapper implements RowMapper {
 
+	/* (non-Javadoc)
+	 * @see org.springframework.jdbc.core.RowMapper#mapRow(java.sql.ResultSet, int)
+	 */
 	public Object mapRow(ResultSet rs, int rowNum) throws SQLException {
-		Person person = new Person();
-		person.setId(rs.getLong("p_id"));
-		person.setSakaiId(rs.getString("p_sakai_id"));
-		person.setUserId(rs.getString("p_user_id"));
-		return person;
+		
+		CalendarLink link = new CalendarLink();
+		
+		CalendarItem calendarItem = (CalendarItem) (new CalendarItemMapper()).mapRow(rs, rowNum);
+		link.setCalendarItem(calendarItem);
+		
+		link.setContext(calendarItem.getContext());
+		
+		// person
+		Person person = (Person) (new PersonMapper()).mapRow(rs, rowNum);
+		link.setPerson(person);
+
+		link.setId(rs.getLong("link_id"));
+		link.setHidden(rs.getBoolean("link_hidden"));
+		link.setSticky(rs.getBoolean("link_sticky"));
+
+		return link;
 	}
-	
-	
 
 }

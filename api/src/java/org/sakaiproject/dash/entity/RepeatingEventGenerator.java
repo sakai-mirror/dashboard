@@ -25,12 +25,12 @@ import java.util.Date;
 import java.util.Map;
 
 /**
- * A RepeatingEventGenerator is an EntityType that can add repeating calendar items 
+ * A RepeatingEventGenerator is an DashboardEntityInfo that can add repeating calendar items 
  * to the calendar.  It provides a method to identify dates on which those repeating
  * calendar items will occur. 
  *
  */
-public interface RepeatingEventGenerator extends EntityType {
+public interface RepeatingEventGenerator extends DashboardEntityInfo {
 	
 	/**
 	 * Returns a list of times at which the repeating event occurs 

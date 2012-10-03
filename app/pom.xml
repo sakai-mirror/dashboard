@@ -9,10 +9,9 @@
 		<version>1.0-SNAPSHOT</version>
 	</parent>
 
-	<name>dashboard - API</name>
+	<name>dashboard - APP</name>
 	<groupId>org.sakaiproject.dash</groupId>
-	<artifactId>dashboard-api</artifactId>
-
+	<artifactId>dashboard-app</artifactId>
 	<packaging>jar</packaging>
 
 	<properties>
@@ -44,6 +43,10 @@
 			<groupId>org.sakaiproject.message</groupId>
 			<artifactId>sakai-message-api</artifactId>
 			<version>${sakai.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.sakaiproject.dash</groupId>
+			<artifactId>dashboard-api</artifactId>
 		</dependency>
 	</dependencies>
 

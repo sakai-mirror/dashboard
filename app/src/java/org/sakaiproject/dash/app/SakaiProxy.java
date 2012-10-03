@@ -19,7 +19,7 @@
  * 
  **********************************************************************************/ 
 
-package org.sakaiproject.dash.logic;
+package org.sakaiproject.dash.app;
 
 import java.util.Collection;
 import java.util.List;

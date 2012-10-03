@@ -47,9 +47,10 @@ import org.apache.wicket.model.IModel;
 import org.apache.wicket.model.LoadableDetachableModel;
 import org.apache.wicket.spring.injection.annot.SpringBean;
 
-import org.sakaiproject.dash.logic.DashboardConfig;
+import org.sakaiproject.dash.app.DashboardCommonLogic;
+import org.sakaiproject.dash.app.DashboardConfig;
 import org.sakaiproject.dash.logic.DashboardLogic;
-import org.sakaiproject.dash.logic.SakaiProxy;
+import org.sakaiproject.dash.app.SakaiProxy;
 import org.sakaiproject.dash.model.NewsItem;
 import org.sakaiproject.dash.model.NewsLink;
 import org.sakaiproject.dash.tool.util.JsonHelper;
@@ -73,13 +74,13 @@ public class NewsLinksPanel extends Panel {
 	protected static final String TIME_FORMAT = "HH:mm";
 	protected static final String DATETIME_FORMAT = "dd-MMM-yyyy HH:mm";
 	
-	@SpringBean(name="org.sakaiproject.dash.logic.SakaiProxy")
+	@SpringBean(name="org.sakaiproject.dash.app.SakaiProxy")
 	protected SakaiProxy sakaiProxy;
 	
-	@SpringBean(name="org.sakaiproject.dash.logic.DashboardLogic")
-	protected DashboardLogic dashboardLogic;
+	@SpringBean(name="org.sakaiproject.dash.app.DashboardCommonLogic")
+	protected DashboardCommonLogic dashboardCommonLogic;
 
-	@SpringBean(name="org.sakaiproject.dash.logic.DashboardConfig")
+	@SpringBean(name="org.sakaiproject.dash.app.DashboardConfig")
 	protected DashboardConfig dashboardConfig;
 
 	protected NewsLinksDataProvider newsLinksProvider = null;
@@ -140,7 +141,7 @@ public class NewsLinksPanel extends Panel {
 		        	newsLinksProvider = new NewsLinksDataProvider(selectedNewsTab);
 		        } else {
 		        	newsLinksProvider.setNewsTab(selectedNewsTab);
-					dashboardLogic.recordDashboardActivity(DashboardLogic.EVENT_DASH_TABBING, "/dashboard/news/" + selectedNewsTab);
+					dashboardCommonLogic.recordDashboardActivity(DashboardCommonLogic.EVENT_DASH_TABBING, "/dashboard/news/" + selectedNewsTab);
 		        }
 				initPanel();
 				
@@ -174,7 +175,7 @@ public class NewsLinksPanel extends Panel {
 		        	newsLinksProvider = new NewsLinksDataProvider(selectedNewsTab);
 		        } else {
 		        	newsLinksProvider.setNewsTab(selectedNewsTab);
-					dashboardLogic.recordDashboardActivity(DashboardLogic.EVENT_DASH_TABBING, "/dashboard/news/" + selectedNewsTab);
+					dashboardCommonLogic.recordDashboardActivity(DashboardCommonLogic.EVENT_DASH_TABBING, "/dashboard/news/" + selectedNewsTab);
 		        }
 				initPanel();
 				
@@ -207,7 +208,7 @@ public class NewsLinksPanel extends Panel {
 		        	newsLinksProvider = new NewsLinksDataProvider(selectedNewsTab);
 		        } else {
 		        	newsLinksProvider.setNewsTab(selectedNewsTab);
-					dashboardLogic.recordDashboardActivity(DashboardLogic.EVENT_DASH_TABBING, "/dashboard/news/" + selectedNewsTab);
+					dashboardCommonLogic.recordDashboardActivity(DashboardCommonLogic.EVENT_DASH_TABBING, "/dashboard/news/" + selectedNewsTab);
 		        }
 				initPanel();
 				
@@ -269,12 +270,12 @@ public class NewsLinksPanel extends Panel {
 					@Override
 					public Object getObject() {
 						// TODO Auto-generated method stub
-						return dashboardLogic.getEntityIconUrl(nItem.getSourceType().getIdentifier(), nItem.getSubtype());
+						return dashboardCommonLogic.getEntityIconUrl(nItem.getSourceType().getIdentifier(), nItem.getSubtype());
 					}
                 	
                 }));
                 item.add(icon);
-                String newsItemLabel = dashboardLogic.getString(nItem.getNewsTimeLabelKey(), "", itemType);
+                String newsItemLabel = dashboardCommonLogic.getString(nItem.getNewsTimeLabelKey(), "", itemType);
                 if(newsItemLabel == null || hideActionLinks) {
                 	newsItemLabel = "";
                 }
@@ -309,16 +310,16 @@ public class NewsLinksPanel extends Panel {
 							//logger.debug(this.getModelObject());
 							
 							String sakaiUserId = sakaiProxy.getCurrentUserId();
-							boolean success = dashboardLogic.unkeepNewsItem(sakaiUserId, newsItemId);
-							dashboardLogic.recordDashboardActivity(DashboardLogic.EVENT_DASH_UNSTAR, "/dashboard/news/" + selectedNewsTab + "/" + newsItemId);
+							boolean success = dashboardCommonLogic.unkeepNewsItem(sakaiUserId, newsItemId);
+							dashboardCommonLogic.recordDashboardActivity(DashboardCommonLogic.EVENT_DASH_UNSTAR, "/dashboard/news/" + selectedNewsTab + "/" + newsItemId);
 							
 							// if success adjust UI, else report failure?
 							if(success) {
 								target.addComponent(NewsLinksPanel.this);
 								if(TAB_ID_STARRED.equals(selectedNewsTab)) {
 									ResourceLoader rl = new ResourceLoader("dash_entity");
-									NewsItem changedItem = dashboardLogic.getNewsItem(newsItemId);
-									JsonHelper jsonHelper = new JsonHelper(dashboardLogic, dashboardConfig);
+									NewsItem changedItem = dashboardCommonLogic.getNewsItem(newsItemId);
+									JsonHelper jsonHelper = new JsonHelper(dashboardCommonLogic, dashboardConfig);
 									String jsonStr = jsonHelper.getJsonObjectFromNewsItem(changedItem).toString();
 									String javascript = "reportSuccess('" + rl.getString("dash.ajax.unstar.success") + "'," + jsonStr + ",'" + "not-sure-about-url-yet" + "');";
 									target.appendJavascript(javascript );
@@ -371,8 +372,8 @@ public class NewsLinksPanel extends Panel {
 							//logger.debug(this.getModelObject());
 							
 							String sakaiUserId = sakaiProxy.getCurrentUserId();
-							boolean success = dashboardLogic.keepNewsItem(sakaiUserId, newsItemId);
-							dashboardLogic.recordDashboardActivity(DashboardLogic.EVENT_DASH_STAR, "/dashboard/news/" + selectedNewsTab + "/" + newsItemId);
+							boolean success = dashboardCommonLogic.keepNewsItem(sakaiUserId, newsItemId);
+							dashboardCommonLogic.recordDashboardActivity(DashboardCommonLogic.EVENT_DASH_STAR, "/dashboard/news/" + selectedNewsTab + "/" + newsItemId);
 							
 							// if success adjust UI, else report failure?
 							if(success) {
@@ -425,15 +426,15 @@ public class NewsLinksPanel extends Panel {
 							logger.debug(newsItemId);
 							//logger.debug(this.getModelObject());
 							String sakaiUserId = sakaiProxy.getCurrentUserId();
-							boolean success = dashboardLogic.unhideNewsItem(sakaiUserId, newsItemId);
-							dashboardLogic.recordDashboardActivity(DashboardLogic.EVENT_DASH_SHOW, "/dashboard/news/" + selectedNewsTab + "/" + newsItemId);
+							boolean success = dashboardCommonLogic.unhideNewsItem(sakaiUserId, newsItemId);
+							dashboardCommonLogic.recordDashboardActivity(DashboardCommonLogic.EVENT_DASH_SHOW, "/dashboard/news/" + selectedNewsTab + "/" + newsItemId);
 							
 							// if success adjust UI, else report failure?
 							if(success) {
 								ResourceLoader rl = new ResourceLoader("dash_entity");
 								target.addComponent(NewsLinksPanel.this);
-								NewsItem changedItem = dashboardLogic.getNewsItem(newsItemId);
-								JsonHelper jsonHelper = new JsonHelper(dashboardLogic, dashboardConfig);
+								NewsItem changedItem = dashboardCommonLogic.getNewsItem(newsItemId);
+								JsonHelper jsonHelper = new JsonHelper(dashboardCommonLogic, dashboardConfig);
 								String jsonStr = jsonHelper.getJsonObjectFromNewsItem(changedItem).toString();
 								String javascript = "reportSuccess('" + rl.getString("dash.ajax.show.success") + "'," + jsonStr + ",'" + "not-sure-about-url-yet" + "');";
 								target.appendJavascript(javascript );
@@ -484,15 +485,15 @@ public class NewsLinksPanel extends Panel {
 							logger.debug(newsItemId);
 							//logger.debug(this.getModelObject());
 							String sakaiUserId = sakaiProxy.getCurrentUserId();
-							boolean success = dashboardLogic.hideNewsItem(sakaiUserId, newsItemId);
-							dashboardLogic.recordDashboardActivity(DashboardLogic.EVENT_DASH_HIDE, "/dashboard/news/" + selectedNewsTab + "/" + newsItemId);
+							boolean success = dashboardCommonLogic.hideNewsItem(sakaiUserId, newsItemId);
+							dashboardCommonLogic.recordDashboardActivity(DashboardCommonLogic.EVENT_DASH_HIDE, "/dashboard/news/" + selectedNewsTab + "/" + newsItemId);
 							
 							// if success adjust UI, else report failure?
 							if(success) {
 								ResourceLoader rl = new ResourceLoader("dash_entity");
 								target.addComponent(NewsLinksPanel.this);
-								NewsItem changedItem = dashboardLogic.getNewsItem(newsItemId);
-								JsonHelper jsonHelper = new JsonHelper(dashboardLogic, dashboardConfig);
+								NewsItem changedItem = dashboardCommonLogic.getNewsItem(newsItemId);
+								JsonHelper jsonHelper = new JsonHelper(dashboardCommonLogic, dashboardConfig);
 								String jsonStr = jsonHelper.getJsonObjectFromNewsItem(changedItem).toString();
 								String javascript = "reportSuccess('" + rl.getString("dash.ajax.hide.success") + "'," + jsonStr + ",'" + "not-sure-about-url-yet" + "');";
 								target.appendJavascript(javascript );
@@ -595,7 +596,7 @@ public class NewsLinksPanel extends Panel {
         	public void onBeforeRender() {
         		
         		if(this.getPageable().getCurrentPage() != currentPage) {
-    				dashboardLogic.recordDashboardActivity(DashboardLogic.EVENT_DASH_PAGING, "/dashboard/news/" + selectedNewsTab);
+    				dashboardCommonLogic.recordDashboardActivity(DashboardCommonLogic.EVENT_DASH_PAGING, "/dashboard/news/" + selectedNewsTab);
     				currentPage = this.getPageable().getCurrentPage();
         		}
         		
@@ -737,19 +738,19 @@ public class NewsLinksPanel extends Panel {
 				}
 				if(sakaiProxy.isWorksite(siteId)) {
 					if(TAB_ID_CURRENT.equals(newsTabId)) {
-						newsLinks = dashboardLogic.getCurrentNewsLinks(sakaiId, null);
+						newsLinks = dashboardCommonLogic.getCurrentNewsLinks(sakaiId, null);
 					} else if(TAB_ID_STARRED.equals(newsTabId)) {
-						newsLinks = dashboardLogic.getStarredNewsLinks(sakaiId, null);
+						newsLinks = dashboardCommonLogic.getStarredNewsLinks(sakaiId, null);
 					} else if(TAB_ID_HIDDEN.equals(newsTabId)) {
-						newsLinks = dashboardLogic.getHiddenNewsLinks(sakaiId, null);
+						newsLinks = dashboardCommonLogic.getHiddenNewsLinks(sakaiId, null);
 					}
 				} else {
 					if(TAB_ID_CURRENT.equals(newsTabId)) {
-						newsLinks = dashboardLogic.getCurrentNewsLinks(sakaiId, siteId);
+						newsLinks = dashboardCommonLogic.getCurrentNewsLinks(sakaiId, siteId);
 					} else if(TAB_ID_STARRED.equals(newsTabId)) {
-						newsLinks = dashboardLogic.getStarredNewsLinks(sakaiId, siteId);
+						newsLinks = dashboardCommonLogic.getStarredNewsLinks(sakaiId, siteId);
 					} else if(TAB_ID_HIDDEN.equals(newsTabId)) {
-						newsLinks = dashboardLogic.getHiddenNewsLinks(sakaiId, siteId);
+						newsLinks = dashboardCommonLogic.getHiddenNewsLinks(sakaiId, siteId);
 					}
 				}
 			}
