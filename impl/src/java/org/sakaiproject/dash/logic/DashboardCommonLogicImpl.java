@@ -85,7 +85,7 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 	
 	protected static long dashboardEventProcessorThreadId = 0L;
 
-	//protected String serverId = null;
+	protected String serverId = null;
 	protected String serverHandlingAvailabilityChecks = "";
 	protected String serverHandlingRepeatEvents = "";
 	protected String serverHandlingExpirationAndPurging = "";
@@ -322,6 +322,8 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 	 * 
 	 */
 	protected void handleAvailabilityChecks() {
+		logger.info("DashboardCommonLogicImpl.handleAvailabilityChecks start");
+		long startTime = System.currentTimeMillis();
 		Date currentTime = new Date();
 		if(currentTime.getTime() > nextTimeToQueryAvailabilityChecks ) {
 			List<AvailabilityCheck> checks = getAvailabilityChecksBeforeTime(currentTime );
@@ -357,6 +359,9 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 			}
 			dashboardLogic.updateTaskLock(TaskLock.CHECK_AVAILABILITY_OF_HIDDEN_ITEMS);
 		}
+		long elapsedTime = System.currentTimeMillis() - startTime;
+		logger.info("DashboardCommonLogicImpl.handleAvailabilityChecks done. Elapsed Time (ms): " + elapsedTime);
+		
 	}
 	
 	/**
@@ -451,6 +456,10 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 
 	public void init() {
 		logger.info("init()");
+		
+		if(serverId == null) {
+			serverId = sakaiProxy.getServerId();
+		}
 		
 		if (!sakaiProxy.isEventProcessingThreadDisabled())
 		{
@@ -661,7 +670,13 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 		protected Date handlingRepeatedEventsTimer = null;
 		protected Date handlingExpirationAndPurgingTime = null;
 		
+		protected boolean loopTimerEnabled = false;
+		protected long loopTimer = 0L;
+		protected String loopActivity = "";
+		
 		private long sleepTime = 2L;
+
+		protected String propLoopTimerEnabledLocally = null;
 
 		public DashboardEventProcessingThread() {
 			super("Dashboard Event Processing Thread");
@@ -690,13 +705,21 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 			try {
 				dashboardEventProcessorThreadId = Thread.currentThread().getId();
 				logger.info("Started Dashboard Event Processing Thread: " + dashboardEventProcessorThreadId);
+				if(this.propLoopTimerEnabledLocally == null) {
+					this.propLoopTimerEnabledLocally = DashboardConfig.PROP_LOOP_TIMER_ENABLED + "_" + serverId;
+				}
 				
 				boolean timeToHandleAvailabilityChecks = true;
 				boolean timeToHandleRepeatedEvents = false;
 				boolean timeToHandleExpirationAndPurging = false;
-				
+				boolean timeToCheckForAdminChanges = false;
+								
 				sakaiProxy.startAdminSession();
 				while(! timeToQuit) {
+					if(loopTimerEnabled) {
+						loopTimer = System.currentTimeMillis();
+						loopActivity = "nothing";
+					}
 					if(logger.isDebugEnabled()) {
 						logger.debug("Dashboard Event Processing Thread checking event queue: " + eventQueue.size());
 					}
@@ -712,6 +735,9 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 					if(event == null) {
 						if(timeToHandleAvailabilityChecks) {
 							if(handlingAvailabilityChecks) {
+								if(loopTimerEnabled) {
+									loopActivity = "handlingAvailabilityChecks";
+								}
 								SecurityAdvisor advisor = new DashboardLogicSecurityAdvisor();
 								sakaiProxy.pushSecurityAdvisor(advisor);
 								try {
@@ -724,12 +750,19 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 									sakaiProxy.clearThreadLocalCache();
 								}
 							} else {
+								// TODO: move to checkForAdminUpdates
+								if(loopTimerEnabled) {
+									loopActivity = "checkingTaskLock_handleAvailabilityChecks";
+								}
 								handlingAvailabilityChecks = dashboardLogic.checkTaskLock(TaskLock.CHECK_AVAILABILITY_OF_HIDDEN_ITEMS);
 							} 
 							timeToHandleRepeatedEvents = true;
 							timeToHandleAvailabilityChecks = false;
 						} else if(timeToHandleRepeatedEvents) {
 							if(handlingRepeatedEvents) {
+								if(loopTimerEnabled) {
+									loopActivity = "handlingRepeatedEvents";
+								}
 								SecurityAdvisor advisor = new DashboardLogicSecurityAdvisor();
 								sakaiProxy.pushSecurityAdvisor(advisor);
 								try {
@@ -741,13 +774,19 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 									sakaiProxy.popSecurityAdvisor(advisor);
 								}	
 							} else {
+								// TODO: move to checkForAdminUpdates
+								if(loopTimerEnabled) {
+									loopActivity = "checkingTaskLock_handleRepeatedEvents";
+								}
 								handlingRepeatedEvents = dashboardLogic.checkTaskLock(TaskLock.UPDATE_REPEATING_EVENTS);
 							}
 							timeToHandleExpirationAndPurging = true;
 							timeToHandleRepeatedEvents = false;
 						} else if(timeToHandleExpirationAndPurging) {
-							
 							if(handlingExpirationAndPurging) {
+								if(loopTimerEnabled) {
+									loopActivity = "handlingExpirationAndPurging";
+								}
 								SecurityAdvisor advisor = new DashboardLogicSecurityAdvisor();
 								sakaiProxy.pushSecurityAdvisor(advisor);
 								try {
@@ -759,10 +798,21 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 									sakaiProxy.popSecurityAdvisor(advisor);
 								}	
 							} else {
-								timeToHandleExpirationAndPurging = dashboardLogic.checkTaskLock(TaskLock.EXPIRE_AND_PURGE_OLD_DASHBOARD_ITEMS);
+								// TODO: move to checkForAdminUpdates
+								if(loopTimerEnabled) {
+									loopActivity = "checkingTaskLock_handleExpirationAndPurging";
+								}
+								handlingExpirationAndPurging = dashboardLogic.checkTaskLock(TaskLock.EXPIRE_AND_PURGE_OLD_DASHBOARD_ITEMS);
 							}
-							timeToHandleAvailabilityChecks= true;
+							timeToCheckForAdminChanges= true;
 							timeToHandleExpirationAndPurging = false;
+						} else if(timeToCheckForAdminChanges) {
+							if(loopTimerEnabled) {
+								loopActivity = "checkingForAdminChanges";
+							}
+							checkForAdminChanges();
+							timeToHandleAvailabilityChecks= true;
+							timeToCheckForAdminChanges = false;
 						}
 						
 						if(eventQueue == null || eventQueue.isEmpty()) {
@@ -773,6 +823,9 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 							}
 						}
 					} else {
+						if(loopTimerEnabled) {
+							loopActivity = "processingEvents";
+						}
 						if(logger.isDebugEnabled()) {
 							logger.debug("Dashboard Event Processing Thread is processing event: " + event.getEvent());
 						}
@@ -789,6 +842,16 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 							sakaiProxy.clearThreadLocalCache();
 						}
 					}
+					if(loopTimerEnabled) {
+						long elapsedTime = System.currentTimeMillis() - loopTimer;
+						StringBuilder buf = new StringBuilder("DashboardEventProcessingThread.activityTimer\t");
+						buf.append(loopTimer);
+						buf.append("\t");
+						buf.append(elapsedTime);
+						buf.append("\t");
+						buf.append(loopActivity);
+						logger.info(buf.toString());
+					}
 				}
 				
 				logger.warn(EVENT_PROCESSING_THREAD_SHUT_DOWN_MESSAGE);
@@ -797,6 +860,26 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 				logger.error("Unhandled throwable is stopping Dashboard Event Processing Thread", t);
 				throw new RuntimeException(t);
 			}
+		}
+
+		protected void checkForAdminChanges() {
+			// check for change in loopTimerEnabled
+			Integer enabled = dao.getConfigProperty(DashboardConfig.PROP_LOOP_TIMER_ENABLED);
+			if(enabled != null && enabled.intValue() > 0) {
+				loopTimerEnabled = true;
+			} else {
+				enabled = dao.getConfigProperty(propLoopTimerEnabledLocally);
+				loopTimerEnabled = enabled != null && enabled.intValue() > 0;
+			}
+			
+			// set the loopTimerEnabledLocal property to false if it's not already set
+			Integer enabledLocal = dao.getConfigProperty(propLoopTimerEnabledLocally);
+			if(enabledLocal == null) {
+				dao.setConfigProperty(propLoopTimerEnabledLocally, 0);
+			}
+
+			
+			// TODO: move other admin checks here
 		}
 
 		protected void expireAndPurge() {
@@ -873,7 +956,9 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 		 * 
 		 */
 		protected void updateRepeatingEvents() {
-			
+			logger.info("DashboardCommonLogicImpl.updateRepeatingEvents start");
+			long startTime = System.currentTimeMillis();
+
 			if(nextHorizonUpdate != null && System.currentTimeMillis() > nextHorizonUpdate.getTime()) {
 				// time to update
 				Date oldHorizon = dashboardLogic.getRepeatingEventHorizon();
@@ -895,6 +980,8 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 				
 				dashboardLogic.updateTaskLock(TaskLock.UPDATE_REPEATING_EVENTS);
 			}
+			long elapsedTime = System.currentTimeMillis() - startTime;
+			logger.info("DashboardCommonLogicImpl.updateRepeatingEvents done. Elapsed Time (ms): " + elapsedTime);
 		}
 
 	}
