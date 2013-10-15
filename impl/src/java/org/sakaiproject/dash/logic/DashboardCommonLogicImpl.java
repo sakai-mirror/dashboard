@@ -995,7 +995,6 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 			long startTime = System.currentTimeMillis();
 
 			if(nextHorizonUpdate != null && System.currentTimeMillis() > nextHorizonUpdate.getTime()) {
-				long startTime = System.currentTimeMillis();
 				if(loopTimerEnabled) {
 					logger.info("DashboardCommonLogicImpl.updateRepeatingEvents start " + serverId);
 				}
