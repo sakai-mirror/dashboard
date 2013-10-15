@@ -168,8 +168,18 @@ public class DashboardLogicImpl implements DashboardLogic {
 					for(CalendarItem cItem: oldDates) {
 						if(cItem.getSequenceNumber() == null || cItem.getCalendarTime() == null) {
 							logger.warn("addCalendarItemsForRepeatingCalendarItem() -- Deleting bogus CalendarItem and all links to it: " + cItem);
-							dao.deleteCalendarLinks(cItem.getId());
-							dao.deleteCalendarItem(cItem.getId());
+							final Long itemId = cItem.getId();
+							this.transactionTemplate.execute(new TransactionCallback(){
+
+								@Override
+								public Object doInTransaction(TransactionStatus status) {
+									dao.deleteCalendarLinks(itemId);
+									dao.deleteCalendarItem(itemId);
+									return true;
+								}
+								
+							});
+
 						} else {
 							oldDatesMap.put(cItem.getCalendarTime(), cItem);
 						}
@@ -393,7 +403,7 @@ public class DashboardLogicImpl implements DashboardLogic {
 			if(dashboardEntityInfo != null) {
 				Set<String> usersWithLinks = dao.listUsersWithLinks(calendarItem);
 				
-				List<CalendarLink> calendarLinks = new ArrayList<CalendarLink>();
+				final List<CalendarLink> calendarLinks = new ArrayList<CalendarLink>();
 				List<String> sakaiIds = dashboardEntityInfo.getUsersWithAccess(calendarItem.getEntityReference());
 				for(String sakaiId : sakaiIds) {
 					if(usersWithLinks.contains(sakaiId)) {
@@ -409,7 +419,14 @@ public class DashboardLogicImpl implements DashboardLogic {
 					}
 				}
 				if(calendarLinks.size() > 0) {
-					count = dao.addCalendarLinks(calendarLinks);
+					count = (Integer) this.transactionTemplate.execute(new TransactionCallback(){
+
+						@Override
+						public Object doInTransaction(TransactionStatus status) {
+							
+							return dao.addCalendarLinks(calendarLinks);
+						}
+					});
 				}
 			}
 		}
@@ -445,7 +462,16 @@ public class DashboardLogicImpl implements DashboardLogic {
 		}
 		if (context != null)
 		{
-			dao.addContext(context);
+			final Context context_copy = new Context(context);
+			this.transactionTemplate.execute(new TransactionCallback(){
+
+				@Override
+				public Object doInTransaction(TransactionStatus status) {
+					
+					return dao.addContext(context_copy);
+				}
+				
+			});
 		}
 		context = dao.getContext(contextId);
 		return context;
@@ -486,7 +512,7 @@ public class DashboardLogicImpl implements DashboardLogic {
 			DashboardEntityInfo dashboardEntityInfo = this.dashboardEntityInfoMap.get(newsItem.getSourceType().getIdentifier());
 			List<String> sakaiIds = dashboardEntityInfo.getUsersWithAccess(newsItem.getEntityReference());
 			if(sakaiIds != null && sakaiIds.size() > 0) {
-				List<NewsLink> newsLinks = new ArrayList<NewsLink>();
+				final List<NewsLink> newsLinks = new ArrayList<NewsLink>();
 				for(String sakaiId : sakaiIds) {
 					try {
 						Person person = getOrCreatePerson(sakaiId);
@@ -499,7 +525,15 @@ public class DashboardLogicImpl implements DashboardLogic {
 					}
 				}
 				if(newsLinks.size() > 0) {
-					dao.addNewsLinks(newsLinks);
+					transactionTemplate.execute(new TransactionCallback(){
+
+						@Override
+						public Object doInTransaction(TransactionStatus status) {
+							
+							return dao.addNewsLinks(newsLinks);
+						}
+						
+					});
 				}
 			}
 		}
@@ -510,31 +544,46 @@ public class DashboardLogicImpl implements DashboardLogic {
 	 */
 	@Override
 	public RepeatingCalendarItem createRepeatingCalendarItem(String title, Date firstTime,
-			Date lastTime, String calendarTimeLabelKey, String entityReference, Context context, 
+			Date lastTime, final String calendarTimeLabelKey, final String entityReference, Context context, 
 			SourceType sourceType, String frequency, int count) {
 		
-		RepeatingCalendarItem repeatingCalendarItem = new RepeatingCalendarItem(title, firstTime,
+		final RepeatingCalendarItem repeatingCalendarItem = new RepeatingCalendarItem(title, firstTime,
 				lastTime, calendarTimeLabelKey, entityReference, null, context, sourceType, frequency, count);
 		
-		dao.addRepeatingCalendarItem(repeatingCalendarItem);
+		return (RepeatingCalendarItem) transactionTemplate.execute(new TransactionCallback(){
+
+			@Override
+			public Object doInTransaction(TransactionStatus status) {
+				dao.addRepeatingCalendarItem(repeatingCalendarItem);
+				
+				RepeatingCalendarItem rci = dao.getRepeatingCalendarItem(entityReference, calendarTimeLabelKey);
+				
+				addCalendarItemsForRepeatingCalendarItem(rci, new Date(), horizon);
+				
+				return rci;
+			}
+			
+		});
 		
-		repeatingCalendarItem = dao.getRepeatingCalendarItem(entityReference, calendarTimeLabelKey);
-		
-		this.addCalendarItemsForRepeatingCalendarItem(repeatingCalendarItem, new Date(), horizon);
-		
-		return repeatingCalendarItem;
 	}
 
 	/* (non-Javadoc)
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#createSourceType(java.lang.String)
 	 */
 	@Override
-	public SourceType createSourceType(String identifier) {
+	public SourceType createSourceType(final String identifier) {
 		SourceType sourceType = dao.getSourceType(identifier);
 		if(sourceType == null) {
-			sourceType = new SourceType(identifier); 
-			dao.addSourceType(sourceType);
-			sourceType = dao.getSourceType(identifier);
+			final SourceType newSourceType = new SourceType(identifier);
+			sourceType = (SourceType) transactionTemplate.execute(new TransactionCallback(){
+
+				@Override
+				public Object doInTransaction(TransactionStatus status) {
+					dao.addSourceType(newSourceType);
+					return dao.getSourceType(identifier);
+				}
+				
+			});
 		} 
 		return sourceType;
 	}
@@ -713,9 +762,16 @@ public class DashboardLogicImpl implements DashboardLogic {
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#removeAllScheduledAvailabilityChecks(java.lang.String)
 	 */
 	@Override
-	public void removeAllScheduledAvailabilityChecks(String entityReference) {
-		//boolean removed = 
-		dao.deleteAvailabilityChecks(entityReference);
+	public void removeAllScheduledAvailabilityChecks(final String entityReference) {
+		transactionTemplate.execute(new TransactionCallback(){
+
+			@Override
+			public Object doInTransaction(TransactionStatus status) {
+				dao.deleteAvailabilityChecks(entityReference);
+				return true;
+			}
+			
+		});
 	}
 	
 	/* (non-Javadoc)
@@ -741,7 +797,16 @@ public class DashboardLogicImpl implements DashboardLogic {
 			if(logger.isDebugEnabled()) {
 				logger.debug("removing calendar item: " + item);
 			}
-			dao.deleteCalendarItem(item.getId());
+			final Long itemId = item.getId();
+			transactionTemplate.execute(new TransactionCallback(){
+
+				@Override
+				public Object doInTransaction(TransactionStatus status) {
+					
+					return dao.deleteCalendarItem(itemId);
+				}
+				
+			});
 		}
 		
 	}
@@ -769,7 +834,16 @@ public class DashboardLogicImpl implements DashboardLogic {
 				if(logger.isDebugEnabled()) {
 					logger.debug("removing calendar item: " + item);
 				}
-				dao.deleteCalendarItem(item.getId());
+				final Long itemId = item.getId();
+				transactionTemplate.execute(new TransactionCallback(){
+
+					@Override
+					public Object doInTransaction(TransactionStatus status) {
+						
+						return dao.deleteCalendarItem(itemId);
+					}
+					
+				});
 			}
 		}
 	}
@@ -778,15 +852,25 @@ public class DashboardLogicImpl implements DashboardLogic {
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#removeCalendarLinks(java.lang.String, java.lang.String)
 	 */
 	@Override
-	public void removeCalendarLinks(String sakaiUserId, String contextId) {
+	public void removeCalendarLinks(String sakaiUserId, String contextName) {
 		if(logger.isDebugEnabled()) {
-			logger.debug("removeCalendarLinks(" + sakaiUserId + "," + contextId + ") ");
+			logger.debug("removeCalendarLinks(" + sakaiUserId + "," + contextName + ") ");
 		}
 		Person person = dao.getPersonBySakaiId(sakaiUserId);
 		if(person != null) {
-			Context context = dao.getContext(contextId);
+			Context context = dao.getContext(contextName);
 			if(context != null) {
-				dao.deleteCalendarLinks(person.getId(), context.getId());
+				final Long personId = person.getId();
+				final Long contextId = context.getId();
+				transactionTemplate.execute(new TransactionCallback(){
+
+					@Override
+					public Object doInTransaction(TransactionStatus status) {
+						
+						return dao.deleteCalendarLinks(personId, contextId);
+					}
+					
+				});
 			}
 		}
 	}
@@ -797,7 +881,17 @@ public class DashboardLogicImpl implements DashboardLogic {
 	@Override
 	public void removeCalendarLinks(String entityReference,
 			String calendarTimeLabelKey, int sequenceNumber) {
-		// TODO Auto-generated method stub
+		
+		final CalendarItem calendarItem = dao.getCalendarItem(entityReference, calendarTimeLabelKey, sequenceNumber);
+		transactionTemplate.execute(new TransactionCallback(){
+
+			@Override
+			public Object doInTransaction(TransactionStatus status) {
+				dao.deleteCalendarLinks(calendarItem.getId());
+				return true;
+			}
+			
+		});
 		
 	}
 
@@ -807,11 +901,23 @@ public class DashboardLogicImpl implements DashboardLogic {
 	@Override
 	public void removeCalendarLinks(String entityReference) {
 		
-		List<CalendarItem> items = dao.getCalendarItems(entityReference);
+		final List<CalendarItem> items = dao.getCalendarItems(entityReference);
 		if(items != null && items.size() > 0) {
-			for(CalendarItem item : items) {
-				dao.deleteCalendarLinks(item.getId());
-			}
+			transactionTemplate.execute(new TransactionCallback(){
+
+				@Override
+				public Object doInTransaction(TransactionStatus status) {
+					int count = 0;
+					for(CalendarItem item : items) {
+						dao.deleteCalendarLinks(item.getId());
+						count++;
+					}
+					return count;
+				}
+				
+			});
+
+			
 		}
 	}
 
@@ -832,11 +938,21 @@ public class DashboardLogicImpl implements DashboardLogic {
 			if(logger.isDebugEnabled()) {
 				logger.debug("removing news links for item: " + item);
 			}
-			dao.deleteNewsLinks(item.getId());
+			final Long itemId = item.getId();
+			transactionTemplate.execute(new TransactionCallback(){
+
+				@Override
+				public Object doInTransaction(TransactionStatus status) {
+					dao.deleteNewsLinks(itemId);
+					dao.deleteNewsItem(itemId);
+					return true;
+				}
+				
+			});
+
 			if(logger.isDebugEnabled()) {
 				logger.debug("removing news item: " + item);
 			}
-			dao.deleteNewsItem(item.getId());
 		}
 		
 		
@@ -850,7 +966,17 @@ public class DashboardLogicImpl implements DashboardLogic {
 		
 		NewsItem item = dao.getNewsItem(entityReference);
 		if(item != null) {
-			dao.deleteNewsLinks(item.getId());
+			final Long itemId = item.getId();
+			transactionTemplate.execute(new TransactionCallback(){
+
+				@Override
+				public Object doInTransaction(TransactionStatus status) {
+					
+					return dao.deleteNewsLinks(itemId);
+				}
+				
+			});
+			
 		}
 	}
 
@@ -858,15 +984,25 @@ public class DashboardLogicImpl implements DashboardLogic {
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#removeNewsLinks(java.lang.String, java.lang.String)
 	 */
 	@Override
-	public void removeNewsLinks(String sakaiUserId, String contextId) {
+	public void removeNewsLinks(String sakaiUserId, String contextName) {
 		if(logger.isDebugEnabled()) {
-			logger.debug("removeNewsLinks(" + sakaiUserId + "," + contextId + ") ");
+			logger.debug("removeNewsLinks(" + sakaiUserId + "," + contextName + ") ");
 		}
 		Person person = dao.getPersonBySakaiId(sakaiUserId);
 		if(person != null) {
-			Context context = dao.getContext(contextId);
+			Context context = dao.getContext(contextName);
 			if(context != null) {
-				dao.deleteNewsLinks(person.getId(), context.getId());
+				final Long personId = person.getId();
+				final Long contextId = context.getId();
+				transactionTemplate.execute(new TransactionCallback(){
+
+					@Override
+					public Object doInTransaction(TransactionStatus status) {
+						
+						return dao.deleteCalendarLinks(personId, contextId);
+					}
+					
+				});
 			}
 		}
 	}
@@ -875,25 +1011,42 @@ public class DashboardLogicImpl implements DashboardLogic {
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#reviseCalendarItemsLabelKey(java.lang.String, java.lang.String, java.lang.String)
 	 */
 	@Override
-	public void reviseCalendarItemsLabelKey(String entityReference, String oldLabelKey, String newLabelKey) {
+	public void reviseCalendarItemsLabelKey(final String entityReference, final String oldLabelKey, final String newLabelKey) {
 		if(entityReference == null || oldLabelKey == null || newLabelKey == null) {
 			return;
 		}
+		transactionTemplate.execute(new TransactionCallback(){
+
+			@Override
+			public Object doInTransaction(TransactionStatus status) {
+				
+				return dao.updateCalendarItemsLabelKey(entityReference, oldLabelKey, newLabelKey);
+			}
+			
+		});
 		
-		dao.updateCalendarItemsLabelKey(entityReference, oldLabelKey, newLabelKey);
 	}
 
 	/* (non-Javadoc)
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#reviseCalendarItemsTime(java.lang.String, java.util.Date)
 	 */
 	@Override
-	public void reviseCalendarItemsTime(String entityReference, Date newTime) {
+	public void reviseCalendarItemsTime(String entityReference, final Date newTime) {
 		
-		List<CalendarItem> items = dao.getCalendarItems(entityReference);
+		final List<CalendarItem> items = dao.getCalendarItems(entityReference);
 		if(items != null) {
-			for(CalendarItem item : items) {
-				dao.updateCalendarItemTime(item.getId(), newTime);
-			}
+			transactionTemplate.execute(new TransactionCallback(){
+
+				@Override
+				public Object doInTransaction(TransactionStatus status) {
+					int count = 0;
+					for(CalendarItem item : items) {
+						dao.updateCalendarItemTime(item.getId(), newTime);
+						count++;
+					}
+					return count;
+				}
+			});
 		}
 				
 	}
@@ -902,13 +1055,22 @@ public class DashboardLogicImpl implements DashboardLogic {
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#reviseCalendarItemsTitle(java.lang.String, java.lang.String)
 	 */
 	@Override
-	public void reviseCalendarItemsTitle(String entityReference, String newTitle) {
+	public void reviseCalendarItemsTitle(String entityReference, final String newTitle) {
 		
-		List<CalendarItem> items = dao.getCalendarItems(entityReference);
+		final List<CalendarItem> items = dao.getCalendarItems(entityReference);
 		if(items != null) {
-			for(CalendarItem item : items) {
-				dao.updateCalendarItemTitle(item.getId(), newTitle);
-			}
+			transactionTemplate.execute(new TransactionCallback(){
+
+				@Override
+				public Object doInTransaction(TransactionStatus status) {
+					int count = 0;
+					for(CalendarItem item : items) {
+						dao.updateCalendarItemTitle(item.getId(), newTitle);
+						count++;
+					}
+					return count;
+				}
+			});
 		}
 	}
 
@@ -916,23 +1078,35 @@ public class DashboardLogicImpl implements DashboardLogic {
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#reviseCalendarItemTime(java.lang.String, java.lang.String, java.lang.Integer, java.util.Date)
 	 */
 	@Override
-	public void reviseCalendarItemTime(String entityReference,
-			String labelKey, Integer sequenceNumber, Date newDate) {
+	public void reviseCalendarItemTime(final String entityReference,
+			final String labelKey, final Integer sequenceNumber, final Date newDate) {
+		transactionTemplate.execute(new TransactionCallback(){
+
+			@Override
+			public Object doInTransaction(TransactionStatus status) {
+				return dao.updateCalendarItemTime(entityReference, labelKey, sequenceNumber, newDate);
+			}});
 		
-		dao.updateCalendarItemTime(entityReference, labelKey, sequenceNumber, newDate);
 	}
 
 	/* (non-Javadoc)
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#reviseNewsItemTime(java.lang.String, java.util.Date, java.lang.String)
 	 */
 	@Override
-	public void reviseNewsItemTime(String entityReference, Date newTime, String newGroupingIdentifier) {
-		NewsItem item = dao.getNewsItem(entityReference);
-		item.setNewsTime(newTime);
+	public void reviseNewsItemTime(String entityReference, final Date newTime, final String newGroupingIdentifier) {
+		final NewsItem item = dao.getNewsItem(entityReference);
 		if(item == null) {
 			logger.warn("Attempting to revise time of non-existent news item: " + entityReference);
 		} else {
-			dao.updateNewsItemTime(item.getId(), newTime, newGroupingIdentifier);
+			transactionTemplate.execute(new TransactionCallback(){
+
+				@Override
+				public Object doInTransaction(TransactionStatus status) {
+					
+					return dao.updateNewsItemTime(item.getId(), newTime, newGroupingIdentifier);
+				}
+			});
+			
 		}
 	}
 
@@ -940,13 +1114,22 @@ public class DashboardLogicImpl implements DashboardLogic {
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#reviseNewsItemTitle(java.lang.String, java.lang.String, java.util.Date, java.lang.String, java.lang.String)
 	 */
 	@Override
-	public void reviseNewsItemTitle(String entityReference, String newTitle, Date newNewsTime, String newLabelKey, String newGroupingIdentifier) {
+	public void reviseNewsItemTitle(String entityReference, final String newTitle, final Date newNewsTime, final String newLabelKey, final String newGroupingIdentifier) {
 		
-		NewsItem item = dao.getNewsItem(entityReference);
+		final NewsItem item = dao.getNewsItem(entityReference);
 		if(item == null) {
 			logger.warn("Attempting to revise title of non-existent news item: " + entityReference);
 		} else {
-			dao.updateNewsItemTitle(item.getId(), newTitle, newNewsTime, newLabelKey, newGroupingIdentifier);
+			transactionTemplate.execute(new TransactionCallback(){
+
+				@Override
+				public Object doInTransaction(TransactionStatus status) {
+					
+					return dao.updateNewsItemTitle(item.getId(), newTitle, newNewsTime, newLabelKey, newGroupingIdentifier);
+				}
+				
+			});
+			
 		}
 		
 	}
@@ -955,34 +1138,64 @@ public class DashboardLogicImpl implements DashboardLogic {
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#reviseRepeatingCalendarItemFrequency(java.lang.String, java.lang.String)
 	 */
 	@Override
-	public boolean reviseRepeatingCalendarItemFrequency(String entityReference,
-			String frequency) {
-		return dao.updateRepeatingCalendarItemFrequency(entityReference, frequency);
+	public boolean reviseRepeatingCalendarItemFrequency(final String entityReference,
+			final String frequency) {
+		return (Boolean) transactionTemplate.execute(new TransactionCallback(){
+
+			@Override
+			public Object doInTransaction(TransactionStatus status) {
+				
+				return dao.updateRepeatingCalendarItemFrequency(entityReference, frequency);
+			}
+			
+		});
 	}
 
 	/* (non-Javadoc)
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#reviseRepeatingCalendarItemsLabelKey(java.lang.String, java.lang.String, java.lang.String)
 	 */
 	@Override
-	public void reviseRepeatingCalendarItemsLabelKey(String entityReference, String oldLabelKey, String newLabelKey) {
-		dao.updateRepeatingCalendarItemsLabelKey(entityReference, oldLabelKey, newLabelKey);	
+	public void reviseRepeatingCalendarItemsLabelKey(final String entityReference, final String oldLabelKey, final String newLabelKey) {
+		transactionTemplate.execute(new TransactionCallback(){
+
+			@Override
+			public Object doInTransaction(TransactionStatus status) {
+				return dao.updateRepeatingCalendarItemsLabelKey(entityReference, oldLabelKey, newLabelKey);
+			}
+			
+		});	
 	}
 	
 	/* (non-Javadoc)
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#reviseRepeatingCalendarItemTime(java.lang.String, java.util.Date, java.util.Date)
 	 */
 	@Override
-	public void reviseRepeatingCalendarItemTime(String entityReference, Date newFirstTime, Date newLastTime) {
-		// boolean done = 
-		dao.updateRepeatingCalendarItemTime(entityReference, newFirstTime, newLastTime);
+	public void reviseRepeatingCalendarItemTime(final String entityReference, final Date newFirstTime, final Date newLastTime) {
+		transactionTemplate.execute(new TransactionCallback(){
+
+			@Override
+			public Object doInTransaction(TransactionStatus status) {
+				return dao.updateRepeatingCalendarItemTime(entityReference, newFirstTime, newLastTime);
+			}
+			
+		});
+		
 	}
 	
 	/* (non-Javadoc)
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#reviseRepeatingCalendarItemTitle(java.lang.String, java.lang.String)
 	 */
 	@Override
-	public void reviseRepeatingCalendarItemTitle(String entityReference, String newTitle) {
-		dao.updateRepeatingCalendarItemTitle(entityReference, newTitle);
+	public void reviseRepeatingCalendarItemTitle(final String entityReference, final String newTitle) {
+		transactionTemplate.execute(new TransactionCallback(){
+
+			@Override
+			public Object doInTransaction(TransactionStatus status) {
+				return dao.updateRepeatingCalendarItemTitle(entityReference, newTitle);
+			}
+			
+		});
+		
 	}
 
 	/* (non-Javadoc)
@@ -990,9 +1203,17 @@ public class DashboardLogicImpl implements DashboardLogic {
 	 */
 	@Override
 	public void scheduleAvailabilityCheck(String entityReference, String entityTypeId, Date scheduledTime) {
-		AvailabilityCheck availabilityCheck = new AvailabilityCheck(entityReference, entityTypeId, scheduledTime);
-		// boolean added = 
-		dao.addAvailabilityCheck(availabilityCheck);
+		final AvailabilityCheck availabilityCheck = new AvailabilityCheck(entityReference, entityTypeId, scheduledTime);
+		transactionTemplate.execute(new TransactionCallback(){
+
+			@Override
+			public Object doInTransaction(TransactionStatus status) {
+				
+				return dao.addAvailabilityCheck(availabilityCheck);
+			}
+			
+		});
+		
 	}
 
 	/* (non-Javadoc)
@@ -1009,7 +1230,7 @@ public class DashboardLogicImpl implements DashboardLogic {
 	 */
 	@Override
 	public void updateCalendarLinks(String entityReference) {
-		List<CalendarItem> items = dao.getCalendarItems(entityReference);
+		final List<CalendarItem> items = dao.getCalendarItems(entityReference);
 		int count = 0;
 		if(items != null && items.size() > 0) {
 			CalendarItem firstItem = items.get(0);
@@ -1017,7 +1238,7 @@ public class DashboardLogicImpl implements DashboardLogic {
 			Set<String> oldUserSet = dao.getSakaIdsForUserWithCalendarLinks(entityReference);
 			Set<String> newUserSet = new TreeSet<String>(dashboardEntityInfo.getUsersWithAccess(entityReference));
 			
-			Set<String> removeSet = new TreeSet(oldUserSet);
+			final Set<String> removeSet = new TreeSet(oldUserSet);
 			removeSet.removeAll(newUserSet);
 			Set<String> addSet = new TreeSet(newUserSet);
 			addSet.removeAll(oldUserSet);
@@ -1028,17 +1249,7 @@ public class DashboardLogicImpl implements DashboardLogic {
 				logger.debug("removeSet.size == " + removeSet.size());
 				logger.debug("addSet.size == " + addSet.size());
 			}
-			
-			for(String sakaiUserId : removeSet) {
-				Person person = dao.getPersonBySakaiId(sakaiUserId);
-				if(person != null) {
-					for(CalendarItem item : items) {
-						dao.deleteCalendarLink(person.getId(), item.getId());
-					}
-				}
-			}
-			
-			List<CalendarLink> calendarLinks = new ArrayList<CalendarLink>();
+			final List<CalendarLink> calendarLinks = new ArrayList<CalendarLink>();
 			for(String sakaiUserId : addSet) {
 				Person person = dao.getPersonBySakaiId(sakaiUserId);
 				if(person != null) {
@@ -1048,10 +1259,27 @@ public class DashboardLogicImpl implements DashboardLogic {
 					}
 				}
 			}
-			if(calendarLinks.size() > 0) {
-				count = dao.addCalendarLinks(calendarLinks);
-			}
-			// TODO: Log count
+			count = (Integer) transactionTemplate.execute(new TransactionCallback(){
+
+				@Override
+				public Object doInTransaction(TransactionStatus status) {
+					int c = 0;
+					for(String sakaiUserId : removeSet) {
+						Person person = dao.getPersonBySakaiId(sakaiUserId);
+						if(person != null) {
+							for(CalendarItem item : items) {
+								dao.deleteCalendarLink(person.getId(), item.getId());
+							}
+						}
+					}
+					if(calendarLinks.size() > 0) {
+						c = dao.addCalendarLinks(calendarLinks);
+					}
+					return c;
+				}
+				
+			});
+			
 		}
 		if(logger.isDebugEnabled()) {
 			StringBuilder buf = new StringBuilder("updateCalendarLinks(");
@@ -1069,7 +1297,7 @@ public class DashboardLogicImpl implements DashboardLogic {
 	 */
 	@Override
 	public void updateNewsLinks(String entityReference) {
-		NewsItem item = dao.getNewsItem(entityReference);
+		final NewsItem item = dao.getNewsItem(entityReference);
 		if(item == null) {
 			
 		} else {
@@ -1077,7 +1305,7 @@ public class DashboardLogicImpl implements DashboardLogic {
 			Set<String> oldUserSet = dao.getSakaiIdsForUserWithNewsLinks(entityReference);
 			Set<String> newUserSet = new TreeSet<String>(dashboardEntityInfo.getUsersWithAccess(entityReference));
 			
-			Set<String> removeSet = new TreeSet(oldUserSet);
+			final Set<String> removeSet = new TreeSet(oldUserSet);
 			removeSet.removeAll(newUserSet);
 			Set<String> addSet = new TreeSet(newUserSet);
 			addSet.removeAll(oldUserSet);
@@ -1089,15 +1317,7 @@ public class DashboardLogicImpl implements DashboardLogic {
 				logger.debug("addSet.size == " + addSet.size());
 			}
 			
-			for(String sakaiUserId : removeSet) {
-				Person person = dao.getPersonBySakaiId(sakaiUserId);
-				if(person != null) {
-					logger.debug("Attempting to remove link for person: " + person);
-					dao.deleteNewsLink(person.getId(), item.getId());
-				}
-			}
-
-			List<NewsLink> newsLinks = new ArrayList<NewsLink>();
+			final List<NewsLink> newsLinks = new ArrayList<NewsLink>();
 			for(String sakaiUserId : addSet) {
 				Person person = dao.getPersonBySakaiId(sakaiUserId);
 				if(person != null) {
@@ -1106,9 +1326,26 @@ public class DashboardLogicImpl implements DashboardLogic {
 					newsLinks.add(link);
 				}
 			}
-			if(newsLinks.size() > 0) {
-				dao.addNewsLinks(newsLinks);
-			}
+			int count = (Integer) transactionTemplate.execute(new TransactionCallback(){
+
+				@Override
+				public Object doInTransaction(TransactionStatus status) {
+					int c = 0;
+					for(String sakaiUserId : removeSet) {
+						Person person = dao.getPersonBySakaiId(sakaiUserId);
+						if(person != null) {
+							logger.debug("Attempting to remove link for person: " + person);
+							dao.deleteNewsLink(person.getId(), item.getId());
+						}
+					}
+
+					if(newsLinks.size() > 0) {
+						c = dao.addNewsLinks(newsLinks);
+					}
+					return c;
+				}
+				
+			});
 		}
 	}
 	
@@ -1120,9 +1357,16 @@ public class DashboardLogicImpl implements DashboardLogic {
 		Person person = dao.getPersonBySakaiId(sakaiId);
 		if(person == null) {
 			User userObj = this.sakaiProxy.getUser(sakaiId);
-			person = new Person(sakaiId, userObj.getEid());
-			dao.addPerson(person);
-			person = dao.getPersonBySakaiId(sakaiId);
+			final Person new_person = new Person(sakaiId, userObj.getEid());
+			person = (Person) transactionTemplate.execute(new TransactionCallback(){
+
+				@Override
+				public Object doInTransaction(TransactionStatus status) {
+					dao.addPerson(new_person);
+					return dao.getPersonBySakaiId(new_person.getSakaiId());
+				}
+				
+			});
 		}
 		return person;
 	}
@@ -1136,7 +1380,7 @@ public class DashboardLogicImpl implements DashboardLogic {
 	 * @param calendarTime
 	 * @return true if updates have been made, false otherwise.
 	 */
-	protected boolean verifyCalendarItem(CalendarItem calendarItem,
+	protected boolean verifyCalendarItem(final CalendarItem calendarItem,
 			RepeatingCalendarItem repeatingEvent, Integer sequenceNumber, Date calendarTime) {
 		
 		boolean saveChanges = false;
@@ -1190,7 +1434,16 @@ public class DashboardLogicImpl implements DashboardLogic {
 			saveChanges = true;
 		}
 		if(saveChanges) {
-			dao.updateCalendarItem(calendarItem);
+			transactionTemplate.execute(new TransactionCallback(){
+
+				@Override
+				public Object doInTransaction(TransactionStatus status) {
+					dao.updateCalendarItem(calendarItem);
+					return true;
+				}
+				
+			});
+			
 		}
 		return saveChanges;
 	}
@@ -1199,11 +1452,13 @@ public class DashboardLogicImpl implements DashboardLogic {
 	 * (non-Javadoc)
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#checkTaskLock(java.lang.String)
 	 */
-	public boolean checkTaskLock(String task) {
+	public boolean checkTaskLock(final String task) {
+		final Date now = new Date();
+		
 		String serverId = this.sakaiProxy.getServerId();
 		Date expirationTime = taskLockExpirationTimes.get(task);
 		if(expirationTime != null) {
-			if(expirationTime.after(new Date())) {
+			if(expirationTime.after(now)) {
 				if(taskLockServerAssignments.get(task) == null) {
 					// need to get update value from database
 				} else if(taskLockServerAssignments.get(task).equals(serverId)) {
@@ -1216,7 +1471,7 @@ public class DashboardLogicImpl implements DashboardLogic {
 
 		List<TaskLock> taskLocks = this.dao.getTaskLocks(task);
 		if(taskLocks != null && ! taskLocks.isEmpty()) {
-			TaskLock first = taskLocks.get(0);
+			final TaskLock first = taskLocks.get(0);
 			Date negotiationDeadline = taskLockNegotiationsDeadlines.get(task);
 			if(first.getServerId().equals(serverId)) {
 				// this server either has lock or is first in line for lock
@@ -1226,33 +1481,57 @@ public class DashboardLogicImpl implements DashboardLogic {
 					assignTask(task, serverId);
 					
 					return true;
-				} else if(negotiationDeadline != null && negotiationDeadline.before(new Date())) {
+				} else if(negotiationDeadline != null && negotiationDeadline.before(now)) {
 					// claim the task, update task-lock data, and return true
-					this.dao.updateTaskLock(first.getId(), true, new Date());
+					transactionTemplate.execute(new TransactionCallback(){
+
+						@Override
+						public Object doInTransaction(TransactionStatus status) {
+							
+							dao.updateTaskLock(first.getId(), true, now);
+							return true;
+						}
+						
+					});
 					
 					// update task-lock data
 					assignTask(task, serverId);
 					
 					return true;
-				} if(first.getClaimTime().before(new Date(System.currentTimeMillis() - 2*TASK_LOCK_NEGOTIATION_LIMIT_MILLISECONDS))) {
-					// this is to deal with restarts in which no server previously claimed the task 
-					this.dao.deleteTaskLocks(task);
-					return false;
+				} if(first.getClaimTime().before(new Date(now.getTime() - 2*TASK_LOCK_NEGOTIATION_LIMIT_MILLISECONDS))) {
+					// this is to deal with restarts in which no server previously claimed the task
+					return (Boolean) transactionTemplate.execute(new TransactionCallback(){
+
+						@Override
+						public Object doInTransaction(TransactionStatus status) {
+							dao.deleteTaskLocks(task);
+							return false;
+						}
+						
+					});
 				}
 				return false;
 			} else if(first.isHasLock()) {
 				// some other server has lock
 				// check expiration to make sure the lock is active
-				if(first.getLastUpdate().before(new Date(System.currentTimeMillis() - TASK_LOCK_EXPIRATION_PERIOD))) {
+				if(first.getLastUpdate().before(new Date(now.getTime() - TASK_LOCK_EXPIRATION_PERIOD))) {
 					// server with lock is not active. clear all locks for this task so process can start again 
-					this.dao.deleteTaskLocks(task);
-					return false;
+					return (Boolean) transactionTemplate.execute(new TransactionCallback(){
+
+						@Override
+						public Object doInTransaction(TransactionStatus status) {
+							dao.deleteTaskLocks(task);
+							return false;
+						}
+						
+					});
+
 				} else {
 					// server is active, but our data needs updating
 					assignTask(task, first.getServerId());
 					return false;
 				}
-			} else if (negotiationDeadline != null && negotiationDeadline.before(new Date())) {
+			} else if (negotiationDeadline != null && negotiationDeadline.before(now)) {
 				assignTask(task, first.getServerId());
 				return false;
 			}
@@ -1278,30 +1557,37 @@ public class DashboardLogicImpl implements DashboardLogic {
 					}
 				}
 			}
-			if(!giveSomeoneElseAChance) {
-				for(String t : TASKS) {
-					List<TaskLock> possibleTasks = this.dao.getTaskLocks(t);
-					if(possibleTasks != null && !possibleTasks.isEmpty() && serverId.equals(possibleTasks.get(0).getServerId())) {
-						giveSomeoneElseAChance = true;
-						break;
-					}
-					
-				}
-			}
 			
 			// If it does, wait a bit to give other servers a chance to claim this one first.
 			if(giveSomeoneElseAChance) {
 				// Skip a turn or two 
 				// (i.e. set a delay before we can claim any other task) 
 				this.delay = new Date( System.currentTimeMillis() + 5000L );
+			} else {
+				for(String t : TASKS) {
+					List<TaskLock> possibleTasks = this.dao.getTaskLocks(t);
+					if(possibleTasks != null && !possibleTasks.isEmpty() && serverId.equals(possibleTasks.get(0).getServerId())) {
+						giveSomeoneElseAChance = true;
+						break;
+					}
+				}
 			}
 		}
 		
 		if(this.delay == null || this.delay.getTime() < System.currentTimeMillis()) {
-			TaskLock taskLock = new TaskLock(task, serverId, new Date(), false, new Date());
-			this.dao.addTaskLock(taskLock);
+			final TaskLock taskLock = new TaskLock(task, serverId, new Date(), false, now);
+			transactionTemplate.execute(new TransactionCallback(){
+
+				@Override
+				public Object doInTransaction(TransactionStatus status) {
+					dao.addTaskLock(taskLock);
+					return true;
+				}
+				
+			});
 			
-			this.taskLockNegotiationsDeadlines.put(task, new Date(System.currentTimeMillis() + TASK_LOCK_NEGOTIATION_LIMIT_MILLISECONDS));
+			
+			this.taskLockNegotiationsDeadlines.put(task, new Date(now.getTime() + TASK_LOCK_NEGOTIATION_LIMIT_MILLISECONDS));
 			
 			// completely clear the delay so we are not blocked from claiming another task if need be.
 			this.delay = null;
@@ -1323,10 +1609,18 @@ public class DashboardLogicImpl implements DashboardLogic {
 	 * (non-Javadoc)
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#updateTaskLock(java.lang.String)
 	 */
-	public void updateTaskLock(String task) {
-		String serverId = this.sakaiProxy.getServerId();
-		Date lastUpdate = new Date();
-		this.dao.updateTaskLock(task, serverId, lastUpdate);
+	public void updateTaskLock(final String task) {
+		final String serverId = this.sakaiProxy.getServerId();
+		final Date lastUpdate = new Date();
+		transactionTemplate.execute(new TransactionCallback(){
+
+			@Override
+			public Object doInTransaction(TransactionStatus status) {
+				dao.updateTaskLock(task, serverId, lastUpdate);
+				return true;
+			}
+			
+		});
 		
 	}
 
@@ -1334,8 +1628,16 @@ public class DashboardLogicImpl implements DashboardLogic {
 	 * (non-Javadoc)
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#removeTaskLocks(java.lang.String)
 	 */
-	public void removeTaskLocks(String task) {
-		this.dao.deleteTaskLocks(task);
+	public void removeTaskLocks(final String task) {
+		transactionTemplate.execute(new TransactionCallback(){
+
+			@Override
+			public Object doInTransaction(TransactionStatus status) {
+				dao.deleteTaskLocks(task);
+				return true;
+			}
+			
+		});
 	}
 
 }

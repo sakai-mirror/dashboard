@@ -634,13 +634,7 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 									sakaiProxy.popSecurityAdvisor(advisor);
 									sakaiProxy.clearThreadLocalCache();
 								}
-							} else {
-								// TODO: move to checkForAdminUpdates
-								if(loopTimerEnabled) {
-									loopActivity = "checkingTaskLock_handleAvailabilityChecks";
-								}
-								handlingAvailabilityChecks = dashboardLogic.checkTaskLock(TaskLock.CHECK_AVAILABILITY_OF_HIDDEN_ITEMS);
-							} 
+							}
 							timeToHandleRepeatedEvents = true;
 							timeToHandleAvailabilityChecks = false;
 						} else if(timeToHandleRepeatedEvents) {
@@ -658,12 +652,6 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 								} finally {
 									sakaiProxy.popSecurityAdvisor(advisor);
 								}	
-							} else {
-								// TODO: move to checkForAdminUpdates
-								if(loopTimerEnabled) {
-									loopActivity = "checkingTaskLock_handleRepeatedEvents";
-								}
-								handlingRepeatedEvents = dashboardLogic.checkTaskLock(TaskLock.UPDATE_REPEATING_EVENTS);
 							}
 							timeToHandleExpirationAndPurging = true;
 							timeToHandleRepeatedEvents = false;
@@ -682,12 +670,6 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 								} finally {
 									sakaiProxy.popSecurityAdvisor(advisor);
 								}	
-							} else {
-								// TODO: move to checkForAdminUpdates
-								if(loopTimerEnabled) {
-									loopActivity = "checkingTaskLock_handleExpirationAndPurging";
-								}
-								handlingExpirationAndPurging = dashboardLogic.checkTaskLock(TaskLock.EXPIRE_AND_PURGE_OLD_DASHBOARD_ITEMS);
 							}
 							timeToCheckForAdminChanges= true;
 							timeToHandleExpirationAndPurging = false;
@@ -762,9 +744,11 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 			if(enabledLocal == null) {
 				dao.setConfigProperty(propLoopTimerEnabledLocally, 0);
 			}
-
 			
-			// TODO: move other admin checks here
+			// other admin checks here
+			handlingAvailabilityChecks = dashboardLogic.checkTaskLock(TaskLock.CHECK_AVAILABILITY_OF_HIDDEN_ITEMS);
+			handlingExpirationAndPurging = dashboardLogic.checkTaskLock(TaskLock.EXPIRE_AND_PURGE_OLD_DASHBOARD_ITEMS);
+			handlingRepeatedEvents = dashboardLogic.checkTaskLock(TaskLock.UPDATE_REPEATING_EVENTS);
 		}
 
 		protected void expireAndPurge() {
