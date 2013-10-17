@@ -73,6 +73,7 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 	
 	public static final long TIME_BETWEEN_AVAILABILITY_CHECKS = 1000L * 60L * 1L;  // one minute
 	public static final long TIME_BETWEEN_EXPIRING_AND_PURGING = 1000L * 60L * 60L; // one hour
+	private static final long ONE_WEEK_IN_MILLIS = 1000L * 60L * 60L * 24L * 7L;
 
 	protected Date nextHorizonUpdate = new Date();
 		
@@ -322,54 +323,63 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 	/*
 	 * 
 	 */
-	protected void handleAvailabilityChecks() {
-		Date currentTime = new Date();
-		if(currentTime.getTime() > nextTimeToQueryAvailabilityChecks ) {
-			long startTime = System.currentTimeMillis();
-			if(loopTimerEnabled) {
-				logger.info("DashboardCommonLogicImpl.handleAvailabilityChecks start " + serverId);
-			}
-			List<AvailabilityCheck> checks = getAvailabilityChecksBeforeTime(currentTime );
-			nextTimeToQueryAvailabilityChecks = currentTime.getTime() + TIME_BETWEEN_AVAILABILITY_CHECKS;
-			
-			if(checks != null && ! checks.isEmpty()) {
-				for(AvailabilityCheck check : checks) {
-					DashboardEntityInfo dashboardEntityInfo = this.dashboardLogic.getDashboardEntityInfo(check.getEntityTypeId());
-					if(dashboardEntityInfo == null) {
-						logger.warn("Unable to process AvailabilityCheck because entityType is null " + check.toString());
-					} else if(dashboardEntityInfo.isAvailable(check.getEntityReference())) {
-						// need to add links
-						List<CalendarItem> calendarItems = dao.getCalendarItems(check.getEntityReference());
-						for(CalendarItem calendarItem : calendarItems) {
-							if(calendarItem != null) {
-								createCalendarLinks(calendarItem);
-							}
-						}
-						
-						NewsItem newsItem = getNewsItem(check.getEntityReference());
-						if(newsItem != null) {
-							createNewsLinks(newsItem);
-						}
-					} else {
-						// verify that users with permissions in alwaysAllowPermission have links and others do not
-						
-						// need to remove all links, if there are any
-						this.removeCalendarLinks(check.getEntityReference());
-						this.removeNewsLinks(check.getEntityReference());
-					}
+	public void handleAvailabilityChecks() {
+		SecurityAdvisor advisor = new DashboardLogicSecurityAdvisor();
+		sakaiProxy.pushSecurityAdvisor(advisor);
+		try {
+			Date currentTime = new Date();
+			if(currentTime.getTime() > nextTimeToQueryAvailabilityChecks ) {
+				long startTime = System.currentTimeMillis();
+				if(loopTimerEnabled) {
+					logger.info("DashboardCommonLogicImpl.handleAvailabilityChecks start " + serverId);
 				}
-				removeAvailabilityChecksBeforeTime(currentTime);
+				List<AvailabilityCheck> checks = getAvailabilityChecksBeforeTime(currentTime );
+				nextTimeToQueryAvailabilityChecks = currentTime.getTime() + TIME_BETWEEN_AVAILABILITY_CHECKS;
+				
+				if(checks != null && ! checks.isEmpty()) {
+					for(AvailabilityCheck check : checks) {
+						DashboardEntityInfo dashboardEntityInfo = this.dashboardLogic.getDashboardEntityInfo(check.getEntityTypeId());
+						if(dashboardEntityInfo == null) {
+							logger.warn("Unable to process AvailabilityCheck because entityType is null " + check.toString());
+						} else if(dashboardEntityInfo.isAvailable(check.getEntityReference())) {
+							// need to add links
+							List<CalendarItem> calendarItems = dao.getCalendarItems(check.getEntityReference());
+							for(CalendarItem calendarItem : calendarItems) {
+								if(calendarItem != null) {
+									createCalendarLinks(calendarItem);
+								}
+							}
+							
+							NewsItem newsItem = getNewsItem(check.getEntityReference());
+							if(newsItem != null) {
+								createNewsLinks(newsItem);
+							}
+						} else {
+							// verify that users with permissions in alwaysAllowPermission have links and others do not
+							
+							// need to remove all links, if there are any
+							this.removeCalendarLinks(check.getEntityReference());
+							this.removeNewsLinks(check.getEntityReference());
+						}
+					}
+					removeAvailabilityChecksBeforeTime(currentTime);
+				}
+				dashboardLogic.updateTaskLock(TaskLock.CHECK_AVAILABILITY_OF_HIDDEN_ITEMS);
+				
+				if(loopTimerEnabled) {
+					long elapsedTime = System.currentTimeMillis() - startTime;
+					StringBuilder buf = new StringBuilder("DashboardCommonLogicImpl.handleAvailabilityChecks done. ");
+					buf.append(serverId);
+					buf.append(" Elapsed Time (ms): ");
+					buf.append(elapsedTime);
+					logger.info(buf.toString());
+				}
 			}
-			dashboardLogic.updateTaskLock(TaskLock.CHECK_AVAILABILITY_OF_HIDDEN_ITEMS);
-			
-			if(loopTimerEnabled) {
-				long elapsedTime = System.currentTimeMillis() - startTime;
-				StringBuilder buf = new StringBuilder("DashboardCommonLogicImpl.handleAvailabilityChecks done. ");
-				buf.append(serverId);
-				buf.append(" Elapsed Time (ms): ");
-				buf.append(elapsedTime);
-				logger.info(buf.toString());
-			}
+		} catch (Exception e) {
+			logger.warn(this + " error in handleAvailabilityChecks ", e);
+		} finally {
+			sakaiProxy.popSecurityAdvisor(advisor);
+			sakaiProxy.clearThreadLocalCache();
 		}
 		
 	}
@@ -542,123 +552,6 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 			}
 		}
 	}
-
-	/************************************************************************
-	 * Making copies of events
-	 ************************************************************************/
-
-	/**
-	 * 
-	 */
-	public class EventCopy implements Event 
-	{
-
-		protected String context;
-		protected String eventIdentifier;
-		protected Date eventTime;
-		protected boolean modify;
-		protected int priority;
-		protected String entityReference;
-		protected String sessionId;
-		protected String userId;
-		
-		public EventCopy(Event original) {
-			super();
-			this.context = original.getContext();
-			this.eventIdentifier = original.getEvent();
-			
-			try {
-				// this.eventTime = original.getEventTime();
-				// the getEventTime() method did not exist before kernel 1.2
-				// so we use reflection
-				Method getEventTimeMethod = original.getClass().getMethod("getEventTime", null);
-				this.eventTime = (Date) getEventTimeMethod.invoke(original, null);
-			} catch (SecurityException e) {
-				logger.warn("Exception trying to get event time: " + e);
-			} catch (NoSuchMethodException e) {
-				logger.warn("Exception trying to get event time: " + e);
-			} catch (IllegalArgumentException e) {
-				logger.warn("Exception trying to get event time: " + e);
-			} catch (IllegalAccessException e) {
-				logger.warn("Exception trying to get event time: " + e);
-			} catch (InvocationTargetException e) {
-				logger.warn("Exception trying to get event time: " + e);
-			}
-			if(this.eventTime == null) {
-				// If we couldn't get eventTime from event, just use NOW.  That's close enough.
-				this.eventTime = new Date();
-			}
-			
-			
-			this.modify = original.getModify();
-			this.priority = original.getPriority();
-			this.entityReference = original.getResource();
-			this.sessionId = original.getSessionId();
-			this.userId = original.getUserId();
-			if(userId == null && sessionId != null) {
-				userId = sakaiProxy.getCurrentUserId();
-			}
-		}
-		
-		public String getContext() {
-			return context;
-		}
-
-		public String getEvent() {
-			return eventIdentifier;
-		}
-
-		public Date getEventTime() {
-			return eventTime;
-		}
-
-		public boolean getModify() {
-			return modify;
-		}
-
-		public int getPriority() {
-			return priority;
-		}
-
-		public String getResource() {
-			return entityReference;
-		}
-
-		public String getSessionId() {
-			return sessionId;
-		}
-
-		public String getUserId() {
-			return userId;
-		}
-
-		/* (non-Javadoc)
-		 * @see java.lang.Object#toString()
-		 */
-		@Override
-		public String toString() {
-			StringBuilder builder = new StringBuilder();
-			builder.append("EventCopy [context=");
-			builder.append(context);
-			builder.append(", eventIdentifier=");
-			builder.append(eventIdentifier);
-			builder.append(", eventTime=");
-			builder.append(eventTime);
-			builder.append(", modify=");
-			builder.append(modify);
-			builder.append(", priority=");
-			builder.append(priority);
-			builder.append(", entityReference=");
-			builder.append(entityReference);
-			builder.append(", sessionId=");
-			builder.append(sessionId);
-			builder.append(", userId=");
-			builder.append(userId);
-			builder.append("]");
-			return builder.toString();
-		}
-		
-	}
 	
 	/************************************************************************
 	 * Event processing daemon (or thread?)
@@ -671,8 +564,6 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 	{
 		protected static final String EVENT_PROCESSING_THREAD_SHUT_DOWN_MESSAGE = 
 			"\n===================================================\n  Dashboard Event Processing Thread shutting down  \n===================================================";
-
-		private static final long ONE_WEEK_IN_MILLIS = 1000L * 60L * 60L * 24L * 7L;
 
 		protected boolean timeToQuit = false;
 		
@@ -709,7 +600,6 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 			
 			timeToQuit = true;
 		}
-
 		public void run() {
 			try {
 				dashboardEventProcessorThreadId = Thread.currentThread().getId();
@@ -718,6 +608,7 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 					this.propLoopTimerEnabledLocally = DashboardConfig.PROP_LOOP_TIMER_ENABLED + "_" + serverId;
 				}
 				
+				boolean handleRepeatTasksViaQuartzJobs = sakaiProxy.getConfigParam("dashboard_handleRepeatTasksViaQuartzJobs", false);
 				boolean timeToHandleAvailabilityChecks = true;
 				boolean timeToHandleRepeatedEvents = false;
 				boolean timeToHandleExpirationAndPurging = false;
@@ -742,87 +633,63 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 					// always give precedence to handling events from queue
 					// so skip other tasks if there's an event to process
 					if(event == null) {
-						if(timeToHandleAvailabilityChecks) {
-							if(handlingAvailabilityChecks) {
-								if(loopTimerEnabled) {
-									loopActivity = "checkingTimeForAvailabilityChecks";
-								}
-								SecurityAdvisor advisor = new DashboardLogicSecurityAdvisor();
-								sakaiProxy.pushSecurityAdvisor(advisor);
-								try {
+						// handle the repeating tasks here if not by quartz job otherwise
+						if (!handleRepeatTasksViaQuartzJobs)
+						{
+							if(timeToHandleAvailabilityChecks) {
+								if(handlingAvailabilityChecks) {
+									if(loopTimerEnabled) {
+										loopActivity = "checkingTimeForAvailabilityChecks";
+									}
 									handleAvailabilityChecks();
-									//timeToHandleAvailabilityChecks = false;
-								} catch (Exception e) {
-									logger.warn("run: " + event, e);
-								} finally {
-									sakaiProxy.popSecurityAdvisor(advisor);
-									sakaiProxy.clearThreadLocalCache();
-								}
-							} else {
-								// TODO: move to checkForAdminUpdates
-								if(loopTimerEnabled) {
-									loopActivity = "checkingTaskLock_handleAvailabilityChecks";
-								}
-								handlingAvailabilityChecks = dashboardLogic.checkTaskLock(TaskLock.CHECK_AVAILABILITY_OF_HIDDEN_ITEMS);
-							} 
-							timeToHandleRepeatedEvents = true;
-							timeToHandleAvailabilityChecks = false;
-						} else if(timeToHandleRepeatedEvents) {
-							if(handlingRepeatedEvents) {
-								if(loopTimerEnabled) {
-									loopActivity = "checkingTimeForRepeatedEvents";
-								}
-								SecurityAdvisor advisor = new DashboardLogicSecurityAdvisor();
-								sakaiProxy.pushSecurityAdvisor(advisor);
-								try {
+								} else {
+									// TODO: move to checkForAdminUpdates
+									if(loopTimerEnabled) {
+										loopActivity = "checkingTaskLock_handleAvailabilityChecks";
+									}
+									handlingAvailabilityChecks = dashboardLogic.checkTaskLock(TaskLock.CHECK_AVAILABILITY_OF_HIDDEN_ITEMS);
+								} 
+								timeToHandleRepeatedEvents = true;
+								timeToHandleAvailabilityChecks = false;
+							} else if(timeToHandleRepeatedEvents) {
+								if(handlingRepeatedEvents) {
+									if(loopTimerEnabled) {
+										loopActivity = "checkingTimeForRepeatedEvents";
+									}
 									updateRepeatingEvents();
-									//timeToHandleAvailabilityChecks = true;
-								} catch (Exception e) {
-									logger.warn("run: " + event, e);
-								} finally {
-									sakaiProxy.popSecurityAdvisor(advisor);
-								}	
-							} else {
-								// TODO: move to checkForAdminUpdates
-								if(loopTimerEnabled) {
-									loopActivity = "checkingTaskLock_handleRepeatedEvents";
+								} else {
+									// TODO: move to checkForAdminUpdates
+									if(loopTimerEnabled) {
+										loopActivity = "checkingTaskLock_handleRepeatedEvents";
+									}
+									handlingRepeatedEvents = dashboardLogic.checkTaskLock(TaskLock.UPDATE_REPEATING_EVENTS);
 								}
-								handlingRepeatedEvents = dashboardLogic.checkTaskLock(TaskLock.UPDATE_REPEATING_EVENTS);
-							}
-							timeToHandleExpirationAndPurging = true;
-							timeToHandleRepeatedEvents = false;
-						} else if(timeToHandleExpirationAndPurging) {
-							if(handlingExpirationAndPurging) {
-								if(loopTimerEnabled) {
-									loopActivity = "checkingTimeForExpirationAndPurging";
+								timeToHandleExpirationAndPurging = true;
+								timeToHandleRepeatedEvents = false;
+							} else if(timeToHandleExpirationAndPurging) {
+								if(handlingExpirationAndPurging) {
+									if(loopTimerEnabled) {
+										loopActivity = "checkingTimeForExpirationAndPurging";
+									}
+									expireAndPurge();	
+								} else {
+									// TODO: move to checkForAdminUpdates
+									if(loopTimerEnabled) {
+										loopActivity = "checkingTaskLock_handleExpirationAndPurging";
+									}
+									handlingExpirationAndPurging = dashboardLogic.checkTaskLock(TaskLock.EXPIRE_AND_PURGE_OLD_DASHBOARD_ITEMS);
 								}
-								SecurityAdvisor advisor = new DashboardLogicSecurityAdvisor();
-								sakaiProxy.pushSecurityAdvisor(advisor);
-								try {
-									expireAndPurge();
-									//timeToHandleAvailabilityChecks = true;
-								} catch (Exception e) {
-									logger.warn("run: " + event, e);
-								} finally {
-									sakaiProxy.popSecurityAdvisor(advisor);
-								}	
-							} else {
-								// TODO: move to checkForAdminUpdates
+								timeToCheckForAdminChanges= true;
+								timeToHandleExpirationAndPurging = false;
+							} else if(timeToCheckForAdminChanges) {
 								if(loopTimerEnabled) {
-									loopActivity = "checkingTaskLock_handleExpirationAndPurging";
+									loopActivity = "checkingForAdminChanges";
 								}
-								handlingExpirationAndPurging = dashboardLogic.checkTaskLock(TaskLock.EXPIRE_AND_PURGE_OLD_DASHBOARD_ITEMS);
-							}
-							timeToCheckForAdminChanges= true;
-							timeToHandleExpirationAndPurging = false;
-						} else if(timeToCheckForAdminChanges) {
-							if(loopTimerEnabled) {
-								loopActivity = "checkingForAdminChanges";
-							}
-							checkForAdminChanges();
-							timeToHandleAvailabilityChecks= true;
-							timeToCheckForAdminChanges = false;
-						}						
+								checkForAdminChanges();
+								timeToHandleAvailabilityChecks= true;
+								timeToCheckForAdminChanges = false;
+							}			
+						}
 					} else {
 						if(loopTimerEnabled) {
 							loopActivity = "processingEvents";
@@ -873,6 +740,7 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 			}
 		}
 
+
 		protected void checkForAdminChanges() {
 			// check for change in loopTimerEnabled
 			Integer enabled = dao.getConfigProperty(DashboardConfig.PROP_LOOP_TIMER_ENABLED);
@@ -904,134 +772,6 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 
 			
 			// TODO: move other admin checks here
-		}
-
-		protected void expireAndPurge() {
-			if(System.currentTimeMillis() > nextTimeToExpireAndPurge ) {
-				long startTime = System.currentTimeMillis();
-				if(loopTimerEnabled) {
-					logger.info("DashboardCommonLogicImpl.expireAndPurge start " + serverId);
-				}
-				expireAndPurgeCalendarItems();
-				expireAndPurgeNewsItems();
-				
-				nextTimeToExpireAndPurge = System.currentTimeMillis() + TIME_BETWEEN_EXPIRING_AND_PURGING;
-
-				dashboardLogic.updateTaskLock(TaskLock.EXPIRE_AND_PURGE_OLD_DASHBOARD_ITEMS);
-
-				if(loopTimerEnabled) {
-					long elapsedTime = System.currentTimeMillis() - startTime;
-					StringBuilder buf = new StringBuilder("DashboardCommonLogicImpl.expireAndPurge done. ");
-					buf.append(serverId);
-					buf.append(" Elapsed Time (ms): ");
-					buf.append(elapsedTime);
-					logger.info(buf.toString());
-				}
-			}
-			
-		}
-
-		protected void expireAndPurgeNewsItems() {
-			Integer weeksToExpireItems = dashboardConfig.getConfigValue(DashboardConfig.PROP_REMOVE_NEWS_ITEMS_AFTER_WEEKS, DEFAULT_NEWS_ITEM_EXPIRATION);
-			Integer weeksToExpireStarredItems = dashboardConfig.getConfigValue(DashboardConfig.PROP_REMOVE_STARRED_NEWS_ITEMS_AFTER_WEEKS, DEFAULT_NEWS_ITEM_EXPIRATION);
-			Integer weeksToExpireHiddenItems = dashboardConfig.getConfigValue(DashboardConfig.PROP_REMOVE_HIDDEN_NEWS_ITEMS_AFTER_WEEKS, DEFAULT_NEWS_ITEM_EXPIRATION);
-			Integer purgeItemsWithoutLinks = dashboardConfig.getConfigValue(DashboardConfig.PROP_REMOVE_NEWS_ITEMS_WITH_NO_LINKS, 0);
-			
-			if(weeksToExpireItems.intValue() > 0) {
-				expireNewsLinks(new Date(System.currentTimeMillis() - weeksToExpireItems.intValue() * ONE_WEEK_IN_MILLIS), false, false);
-			}
-			if(weeksToExpireStarredItems.intValue() > 0) {
-				expireNewsLinks(new Date(System.currentTimeMillis() - weeksToExpireStarredItems.intValue() * ONE_WEEK_IN_MILLIS), false, false);
-			}
-			if(weeksToExpireHiddenItems.intValue() > 0) {
-				expireNewsLinks(new Date(System.currentTimeMillis() - weeksToExpireHiddenItems.intValue() * ONE_WEEK_IN_MILLIS), false, true);
-			}
-			if(purgeItemsWithoutLinks.intValue() > 0) {
-				purgeNewsItems();
-			}
-		}
-
-		private void purgeNewsItems() {
-			dao.deleteNewsItemsWithoutLinks();
-		}
-
-		protected void expireNewsLinks(Date expireBefore, boolean starred, boolean hidden) {
-			dao.deleteNewsLinksBefore(expireBefore,starred,hidden);
-			
-		}
-
-		protected void expireAndPurgeCalendarItems() {
-			Integer weeksToExpireItems = dashboardConfig.getConfigValue(DashboardConfig.PROP_REMOVE_CALENDAR_ITEMS_AFTER_WEEKS, DEFAULT_CALENDAR_ITEM_EXPIRATION);
-			Integer weeksToExpireStarredItems = dashboardConfig.getConfigValue(DashboardConfig.PROP_REMOVE_STARRED_CALENDAR_ITEMS_AFTER_WEEKS, DEFAULT_CALENDAR_ITEM_EXPIRATION);
-			Integer weeksToExpireHiddenItems = dashboardConfig.getConfigValue(DashboardConfig.PROP_REMOVE_HIDDEN_CALENDAR_ITEMS_AFTER_WEEKS, DEFAULT_CALENDAR_ITEM_EXPIRATION);
-			Integer purgeItemsWithoutLinks = dashboardConfig.getConfigValue(DashboardConfig.PROP_REMOVE_CALENDAR_ITEMS_WITH_NO_LINKS, 0);
-
-			if(weeksToExpireItems.intValue() > 0) {
-				expireCalendarLinks(new Date(System.currentTimeMillis() - weeksToExpireItems.intValue() * ONE_WEEK_IN_MILLIS), false, false);
-			}
-			if(weeksToExpireStarredItems.intValue() > 0) {
-				expireCalendarLinks(new Date(System.currentTimeMillis() - weeksToExpireStarredItems.intValue() * ONE_WEEK_IN_MILLIS), false, false);
-			}
-			if(weeksToExpireHiddenItems.intValue() > 0) {
-				expireCalendarLinks(new Date(System.currentTimeMillis() - weeksToExpireHiddenItems.intValue() * ONE_WEEK_IN_MILLIS), false, true);
-			}
-			if(purgeItemsWithoutLinks.intValue() > 0) {
-				purgeCalendarItems();
-			}
-		}
-
-		private void purgeCalendarItems() {
-			dao.deleteCalendarItemsWithoutLinks();
-			
-		}
-
-		protected void expireCalendarLinks(Date expireBefore, boolean starred, boolean hidden) {
-			dao.deleteCalendarLinksBefore(expireBefore, starred, hidden);
-		}
-
-		/**
-		 * 
-		 */
-		protected void updateRepeatingEvents() {
-			if(nextHorizonUpdate != null && System.currentTimeMillis() > nextHorizonUpdate.getTime()) {
-				long startTime = System.currentTimeMillis();
-				if(loopTimerEnabled) {
-					logger.info("DashboardCommonLogicImpl.updateRepeatingEvents start " + serverId);
-				}
-
-				if(loopTimerEnabled) {
-					logger.info("DashboardCommonLogicImpl.updateRepeatingEvents start " + serverId);
-				}
-
-				// time to update
-				Date oldHorizon = dashboardLogic.getRepeatingEventHorizon();
-				Integer weeksToHorizon = dashboardConfig.getConfigValue(DashboardConfig.PROP_WEEKS_TO_HORIZON, new Integer(4));
-				Date newHorizon = new Date(System.currentTimeMillis() + weeksToHorizon * 7L * DashboardLogic.ONE_DAY);
-				dashboardLogic.setRepeatingEventHorizon(newHorizon);
-				
-				if(newHorizon.after(oldHorizon)) {
-					List<RepeatingCalendarItem> repeatingEvents = dao.getRepeatingCalendarItems();
-					if(repeatingEvents != null) {
-						for(RepeatingCalendarItem repeatingEvent: repeatingEvents) {
-							addCalendarItemsForRepeatingCalendarItem(repeatingEvent, oldHorizon, newHorizon);
-
-						}
-					}
-				}
-				Integer daysBetweenHorizonUpdates = dashboardConfig.getConfigValue(DashboardConfig.PROP_DAYS_BETWEEN_HORIZ0N_UPDATES, new Integer(1));
-				nextHorizonUpdate = new Date(nextHorizonUpdate.getTime() + daysBetweenHorizonUpdates.longValue() * DashboardLogic.ONE_DAY);
-				
-				dashboardLogic.updateTaskLock(TaskLock.UPDATE_REPEATING_EVENTS);
-
-				if(loopTimerEnabled) {
-					long elapsedTime = System.currentTimeMillis() - startTime;
-					StringBuilder buf = new StringBuilder("DashboardCommonLogicImpl.updateRepeatingEvents done. ");
-					buf.append(serverId);
-					buf.append(" Elapsed Time (ms): ");
-					buf.append(elapsedTime);
-					logger.info(buf.toString());
-				}
-			}
 		}
 
 	}
@@ -1701,6 +1441,146 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 	 */
 	public void removeTaskLocks(String task) {
 		this.dashboardLogic.removeTaskLocks(task);
+	}
+	
+	/**
+	 * 
+	 */
+	public void updateRepeatingEvents() {
+		SecurityAdvisor advisor = new DashboardLogicSecurityAdvisor();
+		sakaiProxy.pushSecurityAdvisor(advisor);
+		try {	
+			if(nextHorizonUpdate != null && System.currentTimeMillis() > nextHorizonUpdate.getTime()) {
+				long startTime = System.currentTimeMillis();
+				if(loopTimerEnabled) {
+					logger.info("DashboardCommonLogicImpl.updateRepeatingEvents start " + serverId);
+				}
+				// time to update
+				Date oldHorizon = dashboardLogic.getRepeatingEventHorizon();
+				Integer weeksToHorizon = dashboardConfig.getConfigValue(DashboardConfig.PROP_WEEKS_TO_HORIZON, new Integer(4));
+				Date newHorizon = new Date(System.currentTimeMillis() + weeksToHorizon * 7L * DashboardLogic.ONE_DAY);
+				dashboardLogic.setRepeatingEventHorizon(newHorizon);
+				
+				if(newHorizon.after(oldHorizon)) {
+					List<RepeatingCalendarItem> repeatingEvents = dao.getRepeatingCalendarItems();
+					if(repeatingEvents != null) {
+						for(RepeatingCalendarItem repeatingEvent: repeatingEvents) {
+							addCalendarItemsForRepeatingCalendarItem(repeatingEvent, oldHorizon, newHorizon);
+
+						}
+					}
+				}
+				Integer daysBetweenHorizonUpdates = dashboardConfig.getConfigValue(DashboardConfig.PROP_DAYS_BETWEEN_HORIZ0N_UPDATES, new Integer(1));
+				nextHorizonUpdate = new Date(nextHorizonUpdate.getTime() + daysBetweenHorizonUpdates.longValue() * DashboardLogic.ONE_DAY);
+				
+				dashboardLogic.updateTaskLock(TaskLock.UPDATE_REPEATING_EVENTS);
+				
+				if(loopTimerEnabled) {
+					long elapsedTime = System.currentTimeMillis() - startTime;
+					StringBuilder buf = new StringBuilder("DashboardCommonLogicImpl.updateRepeatingEvents done. ");
+					buf.append(serverId);
+					buf.append(" Elapsed Time (ms): ");
+					buf.append(elapsedTime);
+					logger.info(buf.toString());
+				}
+			}
+		} catch (Exception e) {
+			logger.warn("updateRepeatingEvents: ", e);
+		} finally {
+			sakaiProxy.popSecurityAdvisor(advisor);
+		}
+	}
+	
+	public void expireAndPurge() {
+		SecurityAdvisor advisor = new DashboardLogicSecurityAdvisor();
+		sakaiProxy.pushSecurityAdvisor(advisor);
+		try {
+			if(System.currentTimeMillis() > nextTimeToExpireAndPurge ) {
+				long startTime = System.currentTimeMillis();
+				if(loopTimerEnabled) {
+					logger.info("DashboardCommonLogicImpl.expireAndPurge start " + serverId);
+				}
+				expireAndPurgeCalendarItems();
+				expireAndPurgeNewsItems();
+				
+				nextTimeToExpireAndPurge = System.currentTimeMillis() + TIME_BETWEEN_EXPIRING_AND_PURGING;
+
+				dashboardLogic.updateTaskLock(TaskLock.EXPIRE_AND_PURGE_OLD_DASHBOARD_ITEMS);
+				
+				if(loopTimerEnabled) {
+					long elapsedTime = System.currentTimeMillis() - startTime;
+					StringBuilder buf = new StringBuilder("DashboardCommonLogicImpl.expireAndPurge done. ");
+					buf.append(serverId);
+					buf.append(" Elapsed Time (ms): ");
+					buf.append(elapsedTime);
+					logger.info(buf.toString());
+				}
+			}
+			
+		} catch (Exception e) {
+			logger.warn("Error in Dashboard Expire and Purge events ", e);
+		} finally {
+			sakaiProxy.popSecurityAdvisor(advisor);
+		}
+		
+	}
+
+	protected void expireAndPurgeNewsItems() {
+		Integer weeksToExpireItems = dashboardConfig.getConfigValue(DashboardConfig.PROP_REMOVE_NEWS_ITEMS_AFTER_WEEKS, DEFAULT_NEWS_ITEM_EXPIRATION);
+		Integer weeksToExpireStarredItems = dashboardConfig.getConfigValue(DashboardConfig.PROP_REMOVE_STARRED_NEWS_ITEMS_AFTER_WEEKS, DEFAULT_NEWS_ITEM_EXPIRATION);
+		Integer weeksToExpireHiddenItems = dashboardConfig.getConfigValue(DashboardConfig.PROP_REMOVE_HIDDEN_NEWS_ITEMS_AFTER_WEEKS, DEFAULT_NEWS_ITEM_EXPIRATION);
+		Integer purgeItemsWithoutLinks = dashboardConfig.getConfigValue(DashboardConfig.PROP_REMOVE_NEWS_ITEMS_WITH_NO_LINKS, 0);
+		
+		if(weeksToExpireItems.intValue() > 0) {
+			expireNewsLinks(new Date(System.currentTimeMillis() - weeksToExpireItems.intValue() * ONE_WEEK_IN_MILLIS), false, false);
+		}
+		if(weeksToExpireStarredItems.intValue() > 0) {
+			expireNewsLinks(new Date(System.currentTimeMillis() - weeksToExpireStarredItems.intValue() * ONE_WEEK_IN_MILLIS), false, false);
+		}
+		if(weeksToExpireHiddenItems.intValue() > 0) {
+			expireNewsLinks(new Date(System.currentTimeMillis() - weeksToExpireHiddenItems.intValue() * ONE_WEEK_IN_MILLIS), false, true);
+		}
+		if(purgeItemsWithoutLinks.intValue() > 0) {
+			purgeNewsItems();
+		}
+	}
+
+	private void purgeNewsItems() {
+		dao.deleteNewsItemsWithoutLinks();
+	}
+
+	protected void expireNewsLinks(Date expireBefore, boolean starred, boolean hidden) {
+		dao.deleteNewsLinksBefore(expireBefore,starred,hidden);
+		
+	}
+
+	protected void expireAndPurgeCalendarItems() {
+		Integer weeksToExpireItems = dashboardConfig.getConfigValue(DashboardConfig.PROP_REMOVE_CALENDAR_ITEMS_AFTER_WEEKS, DEFAULT_CALENDAR_ITEM_EXPIRATION);
+		Integer weeksToExpireStarredItems = dashboardConfig.getConfigValue(DashboardConfig.PROP_REMOVE_STARRED_CALENDAR_ITEMS_AFTER_WEEKS, DEFAULT_CALENDAR_ITEM_EXPIRATION);
+		Integer weeksToExpireHiddenItems = dashboardConfig.getConfigValue(DashboardConfig.PROP_REMOVE_HIDDEN_CALENDAR_ITEMS_AFTER_WEEKS, DEFAULT_CALENDAR_ITEM_EXPIRATION);
+		Integer purgeItemsWithoutLinks = dashboardConfig.getConfigValue(DashboardConfig.PROP_REMOVE_CALENDAR_ITEMS_WITH_NO_LINKS, 0);
+
+		if(weeksToExpireItems.intValue() > 0) {
+			expireCalendarLinks(new Date(System.currentTimeMillis() - weeksToExpireItems.intValue() * ONE_WEEK_IN_MILLIS), false, false);
+		}
+		if(weeksToExpireStarredItems.intValue() > 0) {
+			expireCalendarLinks(new Date(System.currentTimeMillis() - weeksToExpireStarredItems.intValue() * ONE_WEEK_IN_MILLIS), false, false);
+		}
+		if(weeksToExpireHiddenItems.intValue() > 0) {
+			expireCalendarLinks(new Date(System.currentTimeMillis() - weeksToExpireHiddenItems.intValue() * ONE_WEEK_IN_MILLIS), false, true);
+		}
+		if(purgeItemsWithoutLinks.intValue() > 0) {
+			purgeCalendarItems();
+		}
+	}
+
+	private void purgeCalendarItems() {
+		dao.deleteCalendarItemsWithoutLinks();
+		
+	}
+
+	protected void expireCalendarLinks(Date expireBefore, boolean starred, boolean hidden) {
+		dao.deleteCalendarLinksBefore(expireBefore, starred, hidden);
 	}
 
 }

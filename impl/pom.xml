@@ -16,6 +16,23 @@
 	<packaging>jar</packaging>
 
 	<dependencies>
+		<!-- Apache Commons -->
+		<dependency>
+    	   	    <groupId>commons-pool</groupId>
+    		    <artifactId>commons-pool</artifactId>
+		</dependency>
+		<dependency>
+    		    <groupId>commons-logging</groupId>
+    		    <artifactId>commons-logging</artifactId>
+		</dependency>
+		<dependency>
+		    <groupId>org.sakaiproject.scheduler</groupId>
+		    <artifactId>scheduler-api</artifactId>
+		</dependency>
+		<dependency>
+		    <groupId>org.sakaiproject.scheduler</groupId>
+		    <artifactId>scheduler-component-shared</artifactId>
+		</dependency>
 
 		<!-- project dependencies -->
 		<dependency>
@@ -143,6 +160,10 @@
         <dependency>
             <groupId>org.sakaiproject.entitybroker</groupId>
             <artifactId>entitybroker-utils</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.opensymphony.quartz</groupId>
+            <artifactId>quartz</artifactId>
         </dependency>
 	</dependencies>
 
