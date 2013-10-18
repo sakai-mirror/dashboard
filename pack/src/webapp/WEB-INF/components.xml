@@ -291,6 +291,47 @@
 		
    </bean>
    
+   <!-- This is the actual bean to execute (with an optional parameter that is consumed by the job)
+	Things to note:
+		- the 'id' is arbitrary but must be the same for this bean definition AND the following one
+		- the 'class' is the fully qualified package name of your Java class
+		- you can inject any properties or services into your job in this bean.
+    -->
+	<bean id="dashCheckAdminChangesJob"
+		class="org.sakaiproject.dash.jobs.DashCheckAdminChangesJob">
+		
+		<property name="configMessage">
+			<value>This is a quartz job to check dasboard admin configuration changes</value>
+		</property>
+      	
+      	<property name="sakaiProxy" ref="org.sakaiproject.dash.app.SakaiProxy"></property>
+		<property name="dashboardCommonLogic" ref="org.sakaiproject.dash.app.DashboardCommonLogic" />
+		
+	</bean>
 
+	<!-- This is the helper that will register the above bean with the ScheduleManager
+   	Things to note:
+   		- id must end with the same bean id from above
+   		- class must be the class of the SpringJobBeanWrapper, ie don't change it.
+   		- the beanId property must match the bean id from above
+   		- the jobName property is the text that will be rendered in the list of jobs in Sakai
+	-->
+	<bean id="org.sakaiproject.api.app.scheduler.JobBeanWrapper.dashCheckAdminChangesJob"
+		class="org.sakaiproject.component.app.scheduler.jobs.SpringJobBeanWrapper"
+		singleton="true" init-method="init">
+		
+		<property name="beanId">
+			<value>dashCheckAdminChangesJob</value>
+		</property>
+      
+		<property name="jobName">
+			<value>Dashboard Check Admin Configuration Changes Job</value>
+		</property>
+		
+      	<property name="schedulerManager">
+			<ref bean="org.sakaiproject.api.app.scheduler.SchedulerManager" />
+		</property>
+		
+   </bean>
 
 </beans>

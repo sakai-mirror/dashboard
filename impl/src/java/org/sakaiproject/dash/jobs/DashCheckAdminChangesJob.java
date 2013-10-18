@@ -18,21 +18,21 @@
  */
 package org.sakaiproject.dash.jobs;
 
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
+
 //TODO: Find all statsUpdateManager and replace with this dashboard job
 
-public class DashRepeatEventJob extends DashQuartzJob {
-	private Log	logger = LogFactory.getLog(DashRepeatEventJob.class);
+public class DashCheckAdminChangesJob extends DashQuartzJob {
+	private Log	logger = LogFactory.getLog(DashCheckAdminChangesJob.class);
 	
 	//Matches the bean id
-	final static String beanId = "dashRepeatEventJob";
+	final static String beanId = "dashCheckAdminChangesJob";
 	 
 	//Matches the jobName
-	final static String jobName = "Dashboard Repeat Event Job";
+	final static String jobName = "Dashboard Check for Admin Configuration Changes Job";
 	 
 	public void init() {
 		super.init();
@@ -43,17 +43,16 @@ public class DashRepeatEventJob extends DashQuartzJob {
 	    String quartzServer = sakaiProxy.getConfigParam("dashboard_quartzServer", null);
 	    String serverName = sakaiProxy.getServerId();
     	if (quartzServer != null && serverName != null && quartzServer.equals(serverName))
-    	{	
+    	{
+    		// the current server is the server to execute dashboard quartz jobs
     		logger.info(this + " execute: " + getConfigMessage());
-            
     		try {
-				dashboardCommonLogic.updateRepeatingEvents();
+				dashboardCommonLogic.checkForAdminChanges();
 			} catch (Exception e) {
-				logger.warn("Error executing dashboard quartz job for dashboard repeating events " , e);
-			}
+				logger.warn("Error executing dashboard quartz job for checking admin changes " , e);
+			}	
     	}
     }
-
 }
 
 

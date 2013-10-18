@@ -18,40 +18,58 @@
  */
 package org.sakaiproject.dash.jobs;
 
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.quartz.Job;
 import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
+import org.sakaiproject.api.app.scheduler.SchedulerManager;
+
+import org.sakaiproject.dash.app.DashboardCommonLogic;
+import org.sakaiproject.dash.app.SakaiProxy;
 //TODO: Find all statsUpdateManager and replace with this dashboard job
 
-public class DashRepeatEventJob extends DashQuartzJob {
-	private Log	logger = LogFactory.getLog(DashRepeatEventJob.class);
+public class DashQuartzJob implements Job {
+	private Log	logger = LogFactory.getLog(DashQuartzJob.class);
+
+	private String configMessage;
+	
+	protected SakaiProxy sakaiProxy;
+	public void setSakaiProxy(SakaiProxy proxy) {
+		this.sakaiProxy = proxy;
+	}
+	
+	protected DashboardCommonLogic dashboardCommonLogic;
+	public void setDashboardCommonLogic(DashboardCommonLogic dashboardCommonLogic) {
+		this.dashboardCommonLogic = dashboardCommonLogic;
+	}
+
+	protected SchedulerManager schedulerManager;
+	public void setSchedulerManager(SchedulerManager schedulerManager) {
+		this.schedulerManager = schedulerManager;
+	}
 	
 	//Matches the bean id
-	final static String beanId = "dashRepeatEventJob";
+	final static String beanId = "";
 	 
 	//Matches the jobName
-	final static String jobName = "Dashboard Repeat Event Job";
-	 
+	final static String jobName = "";
+	
+
 	public void init() {
-		super.init();
-	    logger.info(this + " init()");
+		
 	}
 
     public void execute(JobExecutionContext jobExecutionContext) throws JobExecutionException {
-	    String quartzServer = sakaiProxy.getConfigParam("dashboard_quartzServer", null);
-	    String serverName = sakaiProxy.getServerId();
-    	if (quartzServer != null && serverName != null && quartzServer.equals(serverName))
-    	{	
-    		logger.info(this + " execute: " + getConfigMessage());
-            
-    		try {
-				dashboardCommonLogic.updateRepeatingEvents();
-			} catch (Exception e) {
-				logger.warn("Error executing dashboard quartz job for dashboard repeating events " , e);
-			}
-    	}
+    	// to-do
+    }
+
+    public String getConfigMessage() {
+            return configMessage;
+    }
+
+    public void setConfigMessage(String configMessage) {
+            this.configMessage = configMessage;
     }
 
 }
