@@ -1423,7 +1423,8 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 	public void updateRepeatingEvents() {
 		SecurityAdvisor advisor = new DashboardLogicSecurityAdvisor();
 		sakaiProxy.pushSecurityAdvisor(advisor);
-		try {	
+		try {
+			logger.info(this + " updateRepeatingEvents " + nextHorizonUpdate);
 			if(nextHorizonUpdate != null && System.currentTimeMillis() > nextHorizonUpdate.getTime()) {
 				long startTime = System.currentTimeMillis();
 				if(loopTimerEnabled) {
@@ -1438,9 +1439,11 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 				if(newHorizon.after(oldHorizon)) {
 					List<RepeatingCalendarItem> repeatingEvents = dao.getRepeatingCalendarItems();
 					if(repeatingEvents != null) {
+						logger.info(this + " updateRepeatingEvents repeatingEvents count=" + repeatingEvents.size());
+						int count = 1;
 						for(RepeatingCalendarItem repeatingEvent: repeatingEvents) {
 							addCalendarItemsForRepeatingCalendarItem(repeatingEvent, oldHorizon, newHorizon);
-
+							logger.info(this + " updateRepeatingEvents repeatingEvents processed " + count++ + repeatingEvent.getEntityReference() + " " + repeatingEvent.getTitle());
 						}
 					}
 				}

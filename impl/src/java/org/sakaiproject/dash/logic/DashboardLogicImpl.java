@@ -1140,39 +1140,53 @@ public class DashboardLogicImpl implements DashboardLogic {
 			RepeatingCalendarItem repeatingEvent, Integer sequenceNumber, Date calendarTime) {
 		
 		boolean saveChanges = false;
+		try
+		{
 		if(sequenceNumber != null && sequenceNumber.equals(calendarItem.getSequenceNumber())) {
 			// do nothing
 		} else {
+			logger.info(this + " verifyCalendarItem sequenceNumber is different  " + sequenceNumber + " vs " + calendarItem.getSequenceNumber() +" for " + calendarItem.getTitle() + "  " + calendarItem.getEntityReference());
+			
 			calendarItem.setSequenceNumber(sequenceNumber);
 			saveChanges = true;
 		}
 		if(repeatingEvent.getEntityReference() != null && repeatingEvent.getEntityReference().equals(calendarItem.getEntityReference())) {
 			// do nothing
 		} else {
+			logger.info(this + " verifyCalendarItem entityreference is different " + repeatingEvent.getEntityReference()+ " vs " + calendarItem.getEntityReference() + " for " + calendarItem.getTitle() + "  " + calendarItem.getEntityReference());
+			
 			calendarItem.setEntityReference(repeatingEvent.getEntityReference());
 			saveChanges = true;
 		}
 		if(calendarTime != null && calendarTime.equals(calendarItem.getCalendarTime())) {
 			// do nothing
 		} else {
+			logger.info(this + " verifyCalendarItem calendarTime is different  " + calendarTime + " vs " + calendarItem.getCalendarTime() + " for " + calendarItem.getTitle() + "  " + calendarItem.getEntityReference());
+			
 			calendarItem.setCalendarTime(calendarTime);
 			saveChanges = true;
 		}
 		if(repeatingEvent.getTitle() != null && repeatingEvent.getTitle().equals(calendarItem.getTitle())) {
 			// do nothing
 		} else {
+			logger.info(this + " verifyCalendarItem title is different  "  + repeatingEvent.getTitle() + " vs " + calendarItem.getTitle() +" for " + calendarItem.getTitle() + "  " + calendarItem.getEntityReference());
+			
 			calendarItem.setTitle(repeatingEvent.getTitle());
 			saveChanges = true;
 		}
 		if(repeatingEvent.getCalendarTimeLabelKey() != null && repeatingEvent.getCalendarTimeLabelKey().equals(calendarItem.getCalendarTimeLabelKey())) {
 			// do nothing
 		} else {
+			logger.info(this + " verifyCalendarItem CalendarTimeLabelKey is different  " + repeatingEvent.getCalendarTimeLabelKey() + " vs " + calendarItem.getCalendarTimeLabelKey() +" for "  + calendarItem.getTitle() + "  " + calendarItem.getEntityReference());
+			
 			calendarItem.setCalendarTimeLabelKey(repeatingEvent.getCalendarTimeLabelKey());
 			saveChanges = true;
 		}
 		if(repeatingEvent.getContext() != null && repeatingEvent.getContext().equals(calendarItem.getContext())) {
 			// do nothing
 		} else {
+			logger.info(this + " verifyCalendarItem context is different  " + repeatingEvent.getContext().getId() + " vs " + calendarItem.getContext().getId() + " for " + calendarItem.getTitle() + "  " + calendarItem.getEntityReference());
+			
 			calendarItem.setContext(repeatingEvent.getContext());
 			saveChanges = true;
 		}
@@ -1180,17 +1194,27 @@ public class DashboardLogicImpl implements DashboardLogic {
 				&& calendarItem.getSourceType() != null && calendarItem.getSourceType().getIdentifier() != null && repeatingEvent.getSourceType().getIdentifier().equals(calendarItem.getSourceType().getIdentifier()) ) {
 			// do nothing
 		} else {
+			logger.info(this + " verifyCalendarItem sourceType is different  " + repeatingEvent.getSourceType() + " vs " + calendarItem.getSourceType() + " for "+ calendarItem.getTitle() + "  " + calendarItem.getEntityReference());
+			
 			calendarItem.setSourceType(repeatingEvent.getSourceType());
 			saveChanges = true;
 		}
 		if(repeatingEvent.getSubtype() != null && repeatingEvent.getSubtype().equals(calendarItem.getSubtype())) {
 			// do nothing
 		} else {
+			logger.info(this + " verifyCalendarItem subType is different " + repeatingEvent.getSubtype() + " vs " + calendarItem.getSubtype() + " for " + calendarItem.getTitle() + "  " + calendarItem.getEntityReference());
+			
 			calendarItem.setSubtype(repeatingEvent.getSubtype());
 			saveChanges = true;
 		}
 		if(saveChanges) {
+			logger.info(this + " verifyCalendarItem saveChanges=true for " + calendarItem.getTitle() + "  " + calendarItem.getEntityReference());
 			dao.updateCalendarItem(calendarItem);
+		}
+		}
+		catch (Exception e)
+		{
+			logger.info(this + " verifyCalendarItem for " + calendarItem.getTitle() + "  " + calendarItem.getEntityReference() + " " + e);
 		}
 		return saveChanges;
 	}
