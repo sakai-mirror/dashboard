@@ -323,14 +323,23 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 	}
 	
 	/*
-	 * 
+	 * This is to be called from Quartz job
 	 */
 	public void handleAvailabilityChecks() {
-		SecurityAdvisor advisor = new DashboardLogicSecurityAdvisor();
-		sakaiProxy.pushSecurityAdvisor(advisor);
-		try {
-			Date currentTime = new Date();
-			if(currentTime.getTime() > nextTimeToQueryAvailabilityChecks ) {
+		handleAvailabilityChecks(false);
+	}
+	
+	/*
+	 * 
+	 */
+	public void handleAvailabilityChecks(boolean taskLockApproach) {
+		Date currentTime = new Date();
+		if((taskLockApproach && currentTime.getTime() > nextTimeToQueryAvailabilityChecks )
+			|| !taskLockApproach)
+		{
+			SecurityAdvisor advisor = getDashboardSecurityAdvisor();
+			sakaiProxy.pushSecurityAdvisor(advisor);
+			try {
 				long startTime = System.currentTimeMillis();
 				if(loopTimerEnabled) {
 					logger.info("DashboardCommonLogicImpl.handleAvailabilityChecks start " + serverId);
@@ -366,7 +375,11 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 					}
 					removeAvailabilityChecksBeforeTime(currentTime);
 				}
-				dashboardLogic.updateTaskLock(TaskLock.CHECK_AVAILABILITY_OF_HIDDEN_ITEMS);
+				
+				if (taskLockApproach)
+				{
+					dashboardLogic.updateTaskLock(TaskLock.CHECK_AVAILABILITY_OF_HIDDEN_ITEMS);
+				}
 				
 				if(loopTimerEnabled) {
 					long elapsedTime = System.currentTimeMillis() - startTime;
@@ -376,12 +389,13 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 					buf.append(elapsedTime);
 					logger.info(buf.toString());
 				}
+
+			} catch (Exception e) {
+				logger.warn(this + " error in handleAvailabilityChecks ", e);
+			} finally {
+				sakaiProxy.popSecurityAdvisor(advisor);
+				sakaiProxy.clearThreadLocalCache();
 			}
-		} catch (Exception e) {
-			logger.warn(this + " error in handleAvailabilityChecks ", e);
-		} finally {
-			sakaiProxy.popSecurityAdvisor(advisor);
-			sakaiProxy.clearThreadLocalCache();
 		}
 		
 	}
@@ -639,7 +653,7 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 									if(loopTimerEnabled) {
 										loopActivity = "checkingTimeForAvailabilityChecks";
 									}
-									handleAvailabilityChecks();
+									handleAvailabilityChecks(true);
 								} else {
 									// TODO: move to checkForAdminUpdates
 									if(loopTimerEnabled) {
@@ -654,7 +668,7 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 									if(loopTimerEnabled) {
 										loopActivity = "checkingTimeForRepeatedEvents";
 									}
-									updateRepeatingEvents();	
+									updateRepeatingEvents(true);	
 								} else {
 									// TODO: move to checkForAdminUpdates
 									if(loopTimerEnabled) {
@@ -669,7 +683,7 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 									if(loopTimerEnabled) {
 										loopActivity = "checkingTimeForExpirationAndPurging";
 									}
-									expireAndPurge();
+									expireAndPurge(true);
 								} else {
 									// TODO: move to checkForAdminUpdates
 									if(loopTimerEnabled) {
@@ -1417,59 +1431,20 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 		this.dashboardLogic.removeTaskLocks(task);
 	}
 	
-	/**
-	 * 
-	 */
-	public void updateRepeatingEvents() {
-		SecurityAdvisor advisor = new DashboardLogicSecurityAdvisor();
-		sakaiProxy.pushSecurityAdvisor(advisor);
-		try {	
-			if(nextHorizonUpdate != null && System.currentTimeMillis() > nextHorizonUpdate.getTime()) {
-				long startTime = System.currentTimeMillis();
-				if(loopTimerEnabled) {
-					logger.info("DashboardCommonLogicImpl.updateRepeatingEvents start " + serverId);
-				}
-				// time to update
-				Date oldHorizon = dashboardLogic.getRepeatingEventHorizon();
-				Integer weeksToHorizon = dashboardConfig.getConfigValue(DashboardConfig.PROP_WEEKS_TO_HORIZON, new Integer(4));
-				Date newHorizon = new Date(System.currentTimeMillis() + weeksToHorizon * 7L * DashboardLogic.ONE_DAY);
-				dashboardLogic.setRepeatingEventHorizon(newHorizon);
-				
-				if(newHorizon.after(oldHorizon)) {
-					List<RepeatingCalendarItem> repeatingEvents = dao.getRepeatingCalendarItems();
-					if(repeatingEvents != null) {
-						for(RepeatingCalendarItem repeatingEvent: repeatingEvents) {
-							addCalendarItemsForRepeatingCalendarItem(repeatingEvent, oldHorizon, newHorizon);
 
-						}
-					}
-				}
-				Integer daysBetweenHorizonUpdates = dashboardConfig.getConfigValue(DashboardConfig.PROP_DAYS_BETWEEN_HORIZ0N_UPDATES, new Integer(1));
-				nextHorizonUpdate = new Date(nextHorizonUpdate.getTime() + daysBetweenHorizonUpdates.longValue() * DashboardLogic.ONE_DAY);
-				
-				dashboardLogic.updateTaskLock(TaskLock.UPDATE_REPEATING_EVENTS);
-				
-				if(loopTimerEnabled) {
-					long elapsedTime = System.currentTimeMillis() - startTime;
-					StringBuilder buf = new StringBuilder("DashboardCommonLogicImpl.updateRepeatingEvents done. ");
-					buf.append(serverId);
-					buf.append(" Elapsed Time (ms): ");
-					buf.append(elapsedTime);
-					logger.info(buf.toString());
-				}
-			}
-		} catch (Exception e) {
-			logger.warn("updateRepeatingEvents: ", e);
-		} finally {
-			sakaiProxy.popSecurityAdvisor(advisor);
-		}
+	/**
+	 * this is to be called from Quartz job
+	 */
+	public void expireAndPurge() {
+		expireAndPurge(false);
 	}
 	
-	public void expireAndPurge() {
-		SecurityAdvisor advisor = new DashboardLogicSecurityAdvisor();
-		sakaiProxy.pushSecurityAdvisor(advisor);
-		try {
-			if(System.currentTimeMillis() > nextTimeToExpireAndPurge ) {
+	public void expireAndPurge(boolean taskLockApproach) {
+		if((taskLockApproach && System.currentTimeMillis() > nextTimeToExpireAndPurge)
+			|| !taskLockApproach) {
+			SecurityAdvisor advisor = getDashboardSecurityAdvisor();
+			sakaiProxy.pushSecurityAdvisor(advisor);
+			try {
 				long startTime = System.currentTimeMillis();
 				if(loopTimerEnabled) {
 					logger.info("DashboardCommonLogicImpl.expireAndPurge start " + serverId);
@@ -1479,7 +1454,10 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 				
 				nextTimeToExpireAndPurge = System.currentTimeMillis() + TIME_BETWEEN_EXPIRING_AND_PURGING;
 
-				dashboardLogic.updateTaskLock(TaskLock.EXPIRE_AND_PURGE_OLD_DASHBOARD_ITEMS);
+				if (taskLockApproach)
+				{
+					dashboardLogic.updateTaskLock(TaskLock.EXPIRE_AND_PURGE_OLD_DASHBOARD_ITEMS);
+				}
 				
 				if(loopTimerEnabled) {
 					long elapsedTime = System.currentTimeMillis() - startTime;
@@ -1489,12 +1467,11 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 					buf.append(elapsedTime);
 					logger.info(buf.toString());
 				}
+			} catch (Exception e) {
+				logger.warn("Error in Dashboard Expire and Purge events ", e);
+			} finally {
+				sakaiProxy.popSecurityAdvisor(advisor);
 			}
-			
-		} catch (Exception e) {
-			logger.warn("Error in Dashboard Expire and Purge events ", e);
-		} finally {
-			sakaiProxy.popSecurityAdvisor(advisor);
 		}
 		
 	}
@@ -1557,6 +1534,67 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 		dao.deleteCalendarLinksBefore(expireBefore, starred, hidden);
 	}
 
+	/**
+	 * 
+	 */
+	public void updateRepeatingEvents(boolean taskLockApproach) {
+		if((taskLockApproach && nextHorizonUpdate != null && System.currentTimeMillis() > nextHorizonUpdate.getTime())
+			|| !taskLockApproach)
+		{
+			SecurityAdvisor advisor = getDashboardSecurityAdvisor();
+			sakaiProxy.pushSecurityAdvisor(advisor);
+			try {
+				long startTime = System.currentTimeMillis();
+				if(loopTimerEnabled) {
+					logger.info("DashboardCommonLogicImpl.updateRepeatingEvents start " + serverId);
+				}
+	
+				// time to update
+				Date oldHorizon = dashboardLogic.getRepeatingEventHorizon();
+				Integer weeksToHorizon = dashboardConfig.getConfigValue(DashboardConfig.PROP_WEEKS_TO_HORIZON, new Integer(4));
+				Date newHorizon = new Date(System.currentTimeMillis() + weeksToHorizon * 7L * DashboardLogic.ONE_DAY);
+				dashboardLogic.setRepeatingEventHorizon(newHorizon);
+				
+				if(newHorizon.after(oldHorizon)) {
+					List<RepeatingCalendarItem> repeatingEvents = dao.getRepeatingCalendarItems();
+					if(repeatingEvents != null) {
+						for(RepeatingCalendarItem repeatingEvent: repeatingEvents) {
+							addCalendarItemsForRepeatingCalendarItem(repeatingEvent, oldHorizon, newHorizon);
+	
+						}
+					}
+				}
+				Integer daysBetweenHorizonUpdates = dashboardConfig.getConfigValue(DashboardConfig.PROP_DAYS_BETWEEN_HORIZ0N_UPDATES, new Integer(1));
+				nextHorizonUpdate = new Date(nextHorizonUpdate.getTime() + daysBetweenHorizonUpdates.longValue() * DashboardLogic.ONE_DAY);
+				
+				if (taskLockApproach)
+				{
+					dashboardLogic.updateTaskLock(TaskLock.UPDATE_REPEATING_EVENTS);
+				}
+				
+				if(loopTimerEnabled) {
+					long elapsedTime = System.currentTimeMillis() - startTime;
+					StringBuilder buf = new StringBuilder("DashboardCommonLogicImpl.updateRepeatingEvents done. ");
+					buf.append(serverId);
+					buf.append(" Elapsed Time (ms): ");
+					buf.append(elapsedTime);
+					logger.info(buf.toString());
+				}
+			} catch (Exception e) {
+				logger.warn(this + " updateRepeatingEvents: ", e);
+			} finally {
+				sakaiProxy.popSecurityAdvisor(advisor);
+			}
+		}
+	}
+	
+	/**
+	 * This is to be called from Quartz Job
+	 */
+	public void updateRepeatingEvents() {
+		updateRepeatingEvents(false);
+	}
+	
 	public void checkForAdminChanges() {
 		// check for change in loopTimerEnabled
 		Integer enabled = dao.getConfigProperty(DashboardConfig.PROP_LOOP_TIMER_ENABLED);
@@ -1588,5 +1626,31 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 
 		
 		// TODO: move other admin checks here
+	}
+	
+	private SecurityAdvisor getDashboardSecurityAdvisor()
+	{
+		return new SecurityAdvisor() {
+			public SecurityAdvice isAllowed(String userId, String function, String reference) {
+				long threadId = Thread.currentThread().getId();
+
+				if(threadId == dashboardEventProcessorThreadId) {
+					// calling from the dashboard thread
+					return SecurityAdvice.ALLOWED;
+				}
+				else
+				{
+					// calling from Quartz Job
+					if (sakaiProxy.isOfDashboardRelatedPermissions(function))
+					{
+						return SecurityAdvice.ALLOWED;
+					}
+					else
+					{
+						return SecurityAdvice.PASS;
+					}
+				}
+			}
+		};
 	}
 }
