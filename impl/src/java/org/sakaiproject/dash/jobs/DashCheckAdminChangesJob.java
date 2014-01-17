@@ -42,7 +42,8 @@ public class DashCheckAdminChangesJob extends DashQuartzJob {
     public void execute(JobExecutionContext jobExecutionContext) throws JobExecutionException {
 	    String quartzServer = sakaiProxy.getConfigParam("dashboard_quartzServer", null);
 	    String serverName = sakaiProxy.getServerId();
-    	if (quartzServer != null && serverName != null && quartzServer.equals(serverName))
+	    logger.info(this + " prior to execute serverName=" + serverName + " quartzServerName=" + quartzServer);
+	    if (quartzServer != null && serverName != null && quartzServer.equals(serverName))
     	{
     		// the current server is the server to execute dashboard quartz jobs
     		logger.info(this + " execute: " + getConfigMessage());
