@@ -681,6 +681,41 @@ public class DashboardDaoImpl extends JdbcDaoSupport implements DashboardDao {
            return false;
 		}
 	}
+	
+	/* (non-Javadoc)
+	 * @see org.sakaiproject.dash.dao.DashboardDao#deleteLinksByContext(java.lang.String, java.lang.String)
+	 */
+	public boolean deleteLinksByContext(String context, String type) {
+		log.info("deleteLinksByContext(" + context + ", " + type + ")");
+		if (type != null)
+		{
+			log.error(this + " deleteLinksByContext: null type string");
+			return false;
+		}
+		try 
+		{
+			if (DashboardLogic.TYPE_CALENDAR.equals(type))
+			{
+				// remove calendar links
+				getJdbcTemplate().update(getStatement("delete.CalendarLinks.by.context"), new Object[]{context});
+			}
+			else if (DashboardLogic.TYPE_NEWS.equals(type))
+			{
+				// remove news links
+				getJdbcTemplate().update(getStatement("delete.NewsLinks.by.context"), new Object[]{context});
+			}
+			else
+			{
+				// wrong value for the type string
+				log.error(this + " deleteLinksByContext: wrong type string " + type);
+				return false;
+			}
+			return true;
+		} catch (DataAccessException ex) {
+			log.warn("deleteLinksByContext: "+ context + ", " + type + " Error executing query: " + ex.getClass() + ":" + ex.getMessage() );
+			return false;
+		}
+	}
 
 	/* (non-Javadoc)
 	 * @see org.sakaiproject.dash.dao.DashboardDao#deleteNewsItemsWithoutLinks()

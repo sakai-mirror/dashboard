@@ -49,6 +49,10 @@ public interface DashboardLogic {
 	
 	public static final Integer DEFAULT_WEEKS_TO_HORIZON = new Integer(4);
 	
+	// strings to indicate which dashboard item type
+	public static final String TYPE_NEWS = "news";
+	public static final String TYPE_CALENDAR = "calendar";
+	
 	/**
 	 * @param repeatingEvent
 	 * @param oldHorizon
@@ -67,6 +71,17 @@ public interface DashboardLogic {
 	 * @param contextId
 	 */
 	public void addCalendarLinks(String sakaiUserId, String contextId);
+	
+	/**
+	 * Add or remove links to calendar or news items in a context for all users in the context. Links
+	 * will be limited to items referencing entities for which the user has 
+	 * access permission. This action may be limited by time or number, depending 
+	 * on system settings defining policies for removal of calendar links. 
+	 * @param contextId
+	 * @param type
+	 * @param true for adding; false for removing
+	 */
+	public void modifyLinksByContext(String contextId, String type, boolean addOrRemove);
 
 	/**
 	 * Add links to news items in a context for a particular user. Links

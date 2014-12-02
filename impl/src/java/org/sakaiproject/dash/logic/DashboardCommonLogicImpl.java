@@ -836,6 +836,14 @@ public class DashboardCommonLogicImpl implements DashboardCommonLogic, Observer 
 	public void addCalendarLinks(String sakaiUserId, String contextId) {
 		this.dashboardLogic.addCalendarLinks(sakaiUserId, contextId);
 	}
+	
+	/* (non-Javadoc)
+	 * @see org.sakaiproject.dash.logic.DashboardLogic#modifyLinksByContext( java.lang.String, java.lang.String, boolean)
+	 */
+	@Override
+	public void modifyLinksByContext(String contextId, String type, boolean addOrRemove) {
+		this.dashboardLogic.modifyLinksByContext(contextId, type, addOrRemove);
+	}
 
 	/* (non-Javadoc)
 	 * @see org.sakaiproject.dash.logic.DashboardLogic#addNewsLinks(java.lang.String, java.lang.String)
