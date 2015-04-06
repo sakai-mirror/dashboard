@@ -50,6 +50,7 @@ import org.sakaiproject.dash.model.NewsLink;
 import org.sakaiproject.dash.model.Person;
 import org.sakaiproject.dash.model.RepeatingCalendarItem;
 import org.sakaiproject.dash.model.SourceType;
+import org.sakaiproject.entitybroker.DeveloperHelperService;
 import org.sakaiproject.site.api.Site;
 import org.sakaiproject.user.api.User;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -93,8 +94,6 @@ public class DashboardLogicImpl implements DashboardLogic {
 
 	protected Date delay = null;
 	
-
-	
 	/************************************************************************
 	 * Constructor-assigned transaction template
 	 ************************************************************************/
@@ -125,6 +124,12 @@ public class DashboardLogicImpl implements DashboardLogic {
 
 	public void setCache(Cache cache) {
 		this.cache = cache;
+	}
+	
+	
+	protected DeveloperHelperService developerHelperService;
+	public void setDeveloperHelperService(DeveloperHelperService developerHelperService) {
+		this.developerHelperService = developerHelperService;
 	}
 
 	/************************************************************************
@@ -252,12 +257,15 @@ public class DashboardLogicImpl implements DashboardLogic {
 		Person person = this.getOrCreatePerson(sakaiUserId);
 		if(person == null) {
 			logger.warn("Failed attempt to add calendar links for non-existent user: " + sakaiUserId);
+			return;
 		} else {
-			// TODO: deal with expired items
+			// set the current user id
+			developerHelperService.setCurrentUser("/user/" + sakaiUserId);
+            
 			List<CalendarItem> items = dao.getCalendarItemsByContext(contextId);
 			if(items == null || items.isEmpty()) {
 				StringBuilder message = new StringBuilder();
-				message.append("There is no calendar events in context (");
+				message.append("There is no calendar event in context (");
 				message.append(contextId);
 				message.append(") for new user (");
 				message.append(sakaiUserId);
@@ -268,7 +276,7 @@ public class DashboardLogicImpl implements DashboardLogic {
 				for(CalendarItem item: items) {
 					SourceType sourceType = item.getSourceType();
 					DashboardEntityInfo dashboardEntityInfo = this.dashboardEntityInfoMap.get(sourceType.getIdentifier());
-					if(dashboardEntityInfo != null && dashboardEntityInfo.isAvailable(item.getEntityReference()) && dashboardEntityInfo.isUserPermitted(sakaiUserId, item.getEntityReference(), item.getContext().getContextId())) {
+					if(dashboardEntityInfo != null && dashboardEntityInfo.isAvailable(item.getEntityReference())) {
 						CalendarLink calendarLink = new CalendarLink(person, item, item.getContext(), false, false);
 						calendarLinks.add(calendarLink);
 					}
@@ -286,6 +294,9 @@ public class DashboardLogicImpl implements DashboardLogic {
 					
 				}
 			}
+			
+			// restore the current user to previous user
+			developerHelperService.restoreCurrentUser();
 		}
 		if(logger.isDebugEnabled()) {
 			StringBuilder buf = new StringBuilder("addCalendarLinks(");
@@ -373,12 +384,15 @@ public class DashboardLogicImpl implements DashboardLogic {
 		Person person = this.getOrCreatePerson(sakaiUserId);
 		if(person == null) {
 			logger.warn("Attempting to add news links for non-existent user: " + sakaiUserId);
+			return;
 		} else {
-			// TODO: deal with expired items
+			// set the current user id
+			developerHelperService.setCurrentUser("/user/" + sakaiUserId);
+			
 			List<NewsItem> items = dao.getNewsItemsByContext(contextId);
 			if(items == null || items.isEmpty()) {
 				StringBuilder message = new StringBuilder();
-				message.append("There is no news events in context (");
+				message.append("There is no news event in context (");
 				message.append(contextId);
 				message.append(") for new user (");
 				message.append(sakaiUserId);
@@ -389,7 +403,7 @@ public class DashboardLogicImpl implements DashboardLogic {
 				for(NewsItem item: items) {
 					SourceType sourceType = item.getSourceType();
 					DashboardEntityInfo dashboardEntityInfo = this.dashboardEntityInfoMap.get(sourceType.getIdentifier());
-					if(dashboardEntityInfo != null && dashboardEntityInfo.isAvailable(item.getEntityReference()) && dashboardEntityInfo.isUserPermitted(sakaiUserId, item.getEntityReference(), item.getContext().getContextId()) ) {
+					if(dashboardEntityInfo != null && dashboardEntityInfo.isAvailable(item.getEntityReference())) {
 						NewsLink newsLink = new NewsLink(person, item, item.getContext(), false, false);
 						newsLinks.add(newsLink);
 					}
@@ -405,6 +419,9 @@ public class DashboardLogicImpl implements DashboardLogic {
 						}});
 				}
 			}
+			
+			// restore current user to previous user
+			developerHelperService.restoreCurrentUser();
 		}
 		if(logger.isDebugEnabled()) {
 			StringBuilder buf = new StringBuilder("addNewsLinks(");
@@ -1431,5 +1448,4 @@ public class DashboardLogicImpl implements DashboardLogic {
 	public void removeTaskLocks(String task) {
 		this.dao.deleteTaskLocks(task);
 	}
-
 }
