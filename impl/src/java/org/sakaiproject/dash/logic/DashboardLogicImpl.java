@@ -431,7 +431,11 @@ public class DashboardLogicImpl implements DashboardLogic {
 				
 				// restore current user to previous user
 				developerHelperService.restoreCurrentUser();
-
+			}
+			catch (Exception e)
+			{
+				logger.info(this + " addNewsLinks user id=" + sakaiUserId + " Exception" + e.getMessage());
+			}
 		}
 		if(logger.isDebugEnabled()) {
 			StringBuilder buf = new StringBuilder("addNewsLinks(");
