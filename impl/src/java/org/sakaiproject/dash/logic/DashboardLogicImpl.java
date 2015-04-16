@@ -259,44 +259,51 @@ public class DashboardLogicImpl implements DashboardLogic {
 			logger.warn("Failed attempt to add calendar links for non-existent user: " + sakaiUserId);
 			return;
 		} else {
-			// set the current user id
-			developerHelperService.setCurrentUser("/user/" + sakaiUserId);
-            
-			List<CalendarItem> items = dao.getCalendarItemsByContext(contextId);
-			if(items == null || items.isEmpty()) {
-				StringBuilder message = new StringBuilder();
-				message.append("There is no calendar event in context (");
-				message.append(contextId);
-				message.append(") for new user (");
-				message.append(sakaiUserId);
-				message.append(")");
-				logger.info(message.toString());
-			} else {
-				final List<CalendarLink> calendarLinks = new ArrayList<CalendarLink>();
-				for(CalendarItem item: items) {
-					SourceType sourceType = item.getSourceType();
-					DashboardEntityInfo dashboardEntityInfo = this.dashboardEntityInfoMap.get(sourceType.getIdentifier());
-					if(dashboardEntityInfo != null && dashboardEntityInfo.isAvailable(item.getEntityReference())) {
-						CalendarLink calendarLink = new CalendarLink(person, item, item.getContext(), false, false);
-						calendarLinks.add(calendarLink);
+			try
+			{
+				// set the current user id
+				developerHelperService.setCurrentUser("/user/" + sakaiUserId);
+	            
+				List<CalendarItem> items = dao.getCalendarItemsByContext(contextId);
+				if(items == null || items.isEmpty()) {
+					StringBuilder message = new StringBuilder();
+					message.append("There is no calendar event in context (");
+					message.append(contextId);
+					message.append(") for new user (");
+					message.append(sakaiUserId);
+					message.append(")");
+					logger.info(message.toString());
+				} else {
+					final List<CalendarLink> calendarLinks = new ArrayList<CalendarLink>();
+					for(CalendarItem item: items) {
+						SourceType sourceType = item.getSourceType();
+						DashboardEntityInfo dashboardEntityInfo = this.dashboardEntityInfoMap.get(sourceType.getIdentifier());
+						if(dashboardEntityInfo != null && dashboardEntityInfo.isAvailable(item.getEntityReference())) {
+							CalendarLink calendarLink = new CalendarLink(person, item, item.getContext(), false, false);
+							calendarLinks.add(calendarLink);
+						}
+					}
+					if(calendarLinks.size() > 0) {
+						
+						count = (Integer) this.transactionTemplate.execute(new TransactionCallback(){
+	
+							@Override
+							public Object doInTransaction(TransactionStatus status) {
+								
+								int count = dao.addCalendarLinks(calendarLinks);
+								return count;
+							}});
+						
 					}
 				}
-				if(calendarLinks.size() > 0) {
-					
-					count = (Integer) this.transactionTemplate.execute(new TransactionCallback(){
-
-						@Override
-						public Object doInTransaction(TransactionStatus status) {
-							
-							int count = dao.addCalendarLinks(calendarLinks);
-							return count;
-						}});
-					
-				}
+				
+				// restore the current user to previous user
+				developerHelperService.restoreCurrentUser();
 			}
-			
-			// restore the current user to previous user
-			developerHelperService.restoreCurrentUser();
+			catch (Exception e)
+			{
+				logger.info(this + " addCalendarLinks user id=" + sakaiUserId + " Exception" + e.getMessage());
+			}
 		}
 		if(logger.isDebugEnabled()) {
 			StringBuilder buf = new StringBuilder("addCalendarLinks(");
@@ -386,42 +393,45 @@ public class DashboardLogicImpl implements DashboardLogic {
 			logger.warn("Attempting to add news links for non-existent user: " + sakaiUserId);
 			return;
 		} else {
-			// set the current user id
-			developerHelperService.setCurrentUser("/user/" + sakaiUserId);
-			
-			List<NewsItem> items = dao.getNewsItemsByContext(contextId);
-			if(items == null || items.isEmpty()) {
-				StringBuilder message = new StringBuilder();
-				message.append("There is no news event in context (");
-				message.append(contextId);
-				message.append(") for new user (");
-				message.append(sakaiUserId);
-				message.append(")");
-				logger.info(message.toString());
-			} else {
-				final List<NewsLink> newsLinks = new ArrayList<NewsLink>();
-				for(NewsItem item: items) {
-					SourceType sourceType = item.getSourceType();
-					DashboardEntityInfo dashboardEntityInfo = this.dashboardEntityInfoMap.get(sourceType.getIdentifier());
-					if(dashboardEntityInfo != null && dashboardEntityInfo.isAvailable(item.getEntityReference())) {
-						NewsLink newsLink = new NewsLink(person, item, item.getContext(), false, false);
-						newsLinks.add(newsLink);
+			try
+			{
+				// set the current user id
+				developerHelperService.setCurrentUser("/user/" + sakaiUserId);
+				
+				List<NewsItem> items = dao.getNewsItemsByContext(contextId);
+				if(items == null || items.isEmpty()) {
+					StringBuilder message = new StringBuilder();
+					message.append("There is no news event in context (");
+					message.append(contextId);
+					message.append(") for new user (");
+					message.append(sakaiUserId);
+					message.append(")");
+					logger.info(message.toString());
+				} else {
+					final List<NewsLink> newsLinks = new ArrayList<NewsLink>();
+					for(NewsItem item: items) {
+						SourceType sourceType = item.getSourceType();
+						DashboardEntityInfo dashboardEntityInfo = this.dashboardEntityInfoMap.get(sourceType.getIdentifier());
+						if(dashboardEntityInfo != null && dashboardEntityInfo.isAvailable(item.getEntityReference())) {
+							NewsLink newsLink = new NewsLink(person, item, item.getContext(), false, false);
+							newsLinks.add(newsLink);
+						}
+					}
+					if(newsLinks.size() > 0) {
+						
+						count = (Integer) this.transactionTemplate.execute(new TransactionCallback(){
+	
+							@Override
+							public Object doInTransaction(TransactionStatus status) {
+								int count = dao.addNewsLinks(newsLinks);
+								return count;
+							}});
 					}
 				}
-				if(newsLinks.size() > 0) {
-					
-					count = (Integer) this.transactionTemplate.execute(new TransactionCallback(){
+				
+				// restore current user to previous user
+				developerHelperService.restoreCurrentUser();
 
-						@Override
-						public Object doInTransaction(TransactionStatus status) {
-							int count = dao.addNewsLinks(newsLinks);
-							return count;
-						}});
-				}
-			}
-			
-			// restore current user to previous user
-			developerHelperService.restoreCurrentUser();
 		}
 		if(logger.isDebugEnabled()) {
 			StringBuilder buf = new StringBuilder("addNewsLinks(");
